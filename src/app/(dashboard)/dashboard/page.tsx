@@ -8,6 +8,7 @@ import { Users, Bell, DollarSign, AlertCircle } from "lucide-react";
 import { DashboardStats } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// throw new Error("Test Error Boundary");
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
