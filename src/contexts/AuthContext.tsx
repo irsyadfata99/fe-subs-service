@@ -62,7 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     Cookies.set("token", token, { expires: 7 });
     setUser(client);
-    router.push("/dashboard");
+
+    // Force reload if suspended to fetch latest invoice
+    if (client.status === "suspended") {
+      router.push("/dashboard");
+      setTimeout(() => window.location.reload(), 100);
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   const register = async (data: RegisterData) => {
