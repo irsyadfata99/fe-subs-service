@@ -4,14 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -23,6 +16,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     phone: "",
+    contact_whatsapp: "", // ← NEW
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -52,66 +46,46 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="business_name">Business Name</Label>
-              <Input
-                id="business_name"
-                placeholder="Gym Sehat"
-                value={formData.business_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, business_name: e.target.value })
-                }
-                required
-              />
+              <Label htmlFor="business_name">Business Name *</Label>
+              <Input id="business_name" placeholder="Gym Sehat" value={formData.business_name} onChange={(e) => setFormData({ ...formData, business_name: e.target.value })} required />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="business_type">Business Type</Label>
-              <Input
-                id="business_type"
-                placeholder="Fitness Center"
-                value={formData.business_type}
-                onChange={(e) =>
-                  setFormData({ ...formData, business_type: e.target.value })
-                }
-                required
-              />
+              <Label htmlFor="business_type">Business Type *</Label>
+              <Input id="business_type" placeholder="Fitness Center" value={formData.business_type} onChange={(e) => setFormData({ ...formData, business_type: e.target.value })} required />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                required
-              />
+              <Label htmlFor="email">Email *</Label>
+              <Input id="email" type="email" placeholder="you@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="phone">Phone (Optional)</Label>
-              <Input
-                id="phone"
-                placeholder="628123456789"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-              />
+              <Input id="phone" placeholder="628123456789" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+              <p className="text-xs text-muted-foreground">For platform notifications</p>
             </div>
+
+            {/* NEW FIELD */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="contact_whatsapp">WhatsApp Business (Optional)</Label>
               <Input
-                id="password"
-                type="password"
-                placeholder="Min. 8 characters"
-                value={formData.password}
+                id="contact_whatsapp"
+                placeholder="628123456789"
+                value={formData.contact_whatsapp}
                 onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
+                  setFormData({
+                    ...formData,
+                    contact_whatsapp: e.target.value,
+                  })
                 }
-                required
-                minLength={8}
               />
+              <p className="text-xs text-muted-foreground">Will be displayed in end-user reminders. Start with 628.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <Input id="password" type="password" placeholder="Min. 8 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={8} />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">

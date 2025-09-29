@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({
     business_name: "",
     phone: "",
+    contact_whatsapp: "",
     logo_url: "",
   });
 
@@ -33,6 +34,7 @@ export default function SettingsPage() {
       setProfileData({
         business_name: user.business_name || "",
         phone: user.phone || "",
+        contact_whatsapp: user.contact_whatsapp || "",
         logo_url: user.logo_url || "",
       });
     }
@@ -96,9 +98,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your account settings and preferences
-        </p>
+        <p className="text-muted-foreground mt-1">Manage your account settings and preferences</p>
       </div>
 
       {/* Profile Settings */}
@@ -133,26 +133,12 @@ export default function SettingsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                placeholder="628123456789"
-                value={profileData.phone}
-                onChange={(e) =>
-                  setProfileData({ ...profileData, phone: e.target.value })
-                }
-              />
+              <Input id="phone" placeholder="628123456789" value={profileData.phone} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="logo_url">Logo URL</Label>
-              <Input
-                id="logo_url"
-                placeholder="https://example.com/logo.png"
-                value={profileData.logo_url}
-                onChange={(e) =>
-                  setProfileData({ ...profileData, logo_url: e.target.value })
-                }
-              />
+              <Label htmlFor="contact_whatsapp">WhatsApp Business</Label>
+              <Input id="contact_whatsapp" placeholder="628123456789" value={profileData.contact_whatsapp} onChange={(e) => setProfileData({ ...profileData, contact_whatsapp: e.target.value })} />
+              <p className="text-xs text-muted-foreground">This number will be displayed in end-user reminders for customer support. Start with 628.</p>
             </div>
 
             <Button type="submit" disabled={loadingProfile}>

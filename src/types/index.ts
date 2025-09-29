@@ -3,8 +3,9 @@ export interface Client {
   business_name: string;
   business_type: string;
   email: string;
-  phone?: string; // ← ADD THIS
-  logo_url?: string; // ← ADD THIS
+  phone?: string;
+  contact_whatsapp?: string; // ← NEW
+  logo_url?: string;
   status: "trial" | "active" | "suspended";
   trial_ends_at: string;
   total_users: number;
