@@ -73,13 +73,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "End Users", href: "/end-users", icon: Users },
     { name: "Reminders", href: "/reminders", icon: Bell },
-    // Hide billing for admin/super_admin
     ...(user.role === "client" ? [{ name: "Billing", href: "/billing", icon: CreditCard }] : []),
     { name: "Settings", href: "/settings", icon: Settings },
-    // Show admin panel only for super_admin
     ...(user.role === "super_admin" ? [{ name: "Admin Panel", href: "/admin", icon: Shield }] : []),
-    { name: "Billing", href: "/billing", icon: CreditCard },
-    { name: "Settings", href: "/settings", icon: Settings },
   ];
 
   const trialDaysRemaining = user.trial_ends_at ? Math.max(0, Math.ceil((new Date(user.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;

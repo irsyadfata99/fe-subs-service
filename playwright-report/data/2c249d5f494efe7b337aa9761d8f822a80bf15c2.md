@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Create Account
+      - generic [ref=e6]: Start your 30-day free trial
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: Business Name *
+          - textbox "Business Name *" [ref=e11]
+        - generic [ref=e12]:
+          - generic [ref=e13]: Business Type *
+          - textbox "Business Type *" [ref=e14]
+        - generic [ref=e15]:
+          - generic [ref=e16]: Email *
+          - textbox "Email *" [ref=e17]
+        - generic [ref=e18]:
+          - generic [ref=e19]: Phone (Optional)
+          - textbox "Phone (Optional)" [ref=e20]
+          - paragraph [ref=e21]: For platform notifications
+        - generic [ref=e22]:
+          - generic [ref=e23]: WhatsApp Business (Optional)
+          - textbox "WhatsApp Business (Optional)" [ref=e24]
+          - paragraph [ref=e25]: Will be displayed in end-user reminders. Start with 628.
+        - generic [ref=e26]:
+          - generic [ref=e27]: Password *
+          - textbox "Password *" [ref=e28]
+      - generic [ref=e29]:
+        - button "Create Account" [ref=e30]
+        - paragraph [ref=e31]:
+          - text: Already have an account?
+          - link "Login" [ref=e32] [cursor=pointer]:
+            - /url: /login
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e38] [cursor=pointer]:
+    - img [ref=e39] [cursor=pointer]
+  - alert [ref=e42]
+```

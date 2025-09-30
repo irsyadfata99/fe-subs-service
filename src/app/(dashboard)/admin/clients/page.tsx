@@ -175,7 +175,7 @@ export default function AdminClientsPage() {
                       <TableCell>{getRoleBadge(client.role)}</TableCell>
                       <TableCell>{client.total_users}</TableCell>
                       <TableCell>Rp {client.monthly_bill.toLocaleString("id-ID")}</TableCell>
-                      <TableCell>{format(new Date(client.created_at), "dd MMM yyyy")}</TableCell>
+                      <TableCell>{client.created_at ? format(new Date(client.created_at), "dd MMM yyyy") : "-"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/clients/${client.id}`)}>
