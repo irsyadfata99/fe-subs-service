@@ -24,9 +24,9 @@ export default function SettingsPage() {
   });
 
   const [passwordData, setPasswordData] = useState({
-    old_password: "",
-    new_password: "",
-    confirm_password: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
 
   useEffect(() => {
@@ -61,12 +61,12 @@ export default function SettingsPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (passwordData.new_password !== passwordData.confirm_password) {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
 
-    if (passwordData.new_password.length < 8) {
+    if (passwordData.newPassword.length < 8) {
       toast.error("Password must be at least 8 characters");
       return;
     }
@@ -75,16 +75,16 @@ export default function SettingsPage() {
 
     try {
       await api.post("/auth/change-password", {
-        old_password: passwordData.old_password,
-        new_password: passwordData.new_password,
-        confirm_password: passwordData.confirm_password,
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+        confirmPassword: passwordData.confirmPassword,
       });
 
       toast.success("Password changed successfully");
       setPasswordData({
-        old_password: "",
-        new_password: "",
-        confirm_password: "",
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
       });
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
@@ -98,7 +98,9 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account settings and preferences</p>
+        <p className="text-muted-foreground mt-1">
+          Manage your account settings and preferences
+        </p>
       </div>
 
       {/* Profile Settings */}
@@ -133,12 +135,32 @@ export default function SettingsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" placeholder="628123456789" value={profileData.phone} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} />
+              <Input
+                id="phone"
+                placeholder="628123456789"
+                value={profileData.phone}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, phone: e.target.value })
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="contact_whatsapp">WhatsApp Business</Label>
-              <Input id="contact_whatsapp" placeholder="628123456789" value={profileData.contact_whatsapp} onChange={(e) => setProfileData({ ...profileData, contact_whatsapp: e.target.value })} />
-              <p className="text-xs text-muted-foreground">This number will be displayed in end-user reminders for customer support. Start with 628.</p>
+              <Input
+                id="contact_whatsapp"
+                placeholder="628123456789"
+                value={profileData.contact_whatsapp}
+                onChange={(e) =>
+                  setProfileData({
+                    ...profileData,
+                    contact_whatsapp: e.target.value,
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                This number will be displayed in end-user reminders for customer
+                support. Start with 628.
+              </p>
             </div>
 
             <Button type="submit" disabled={loadingProfile}>
@@ -161,15 +183,15 @@ export default function SettingsPage() {
         <CardContent>
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="old_password">Current Password</Label>
+              <Label htmlFor="currentPassword">Current Password</Label>
               <Input
-                id="old_password"
+                id="currentPassword"
                 type="password"
-                value={passwordData.old_password}
+                value={passwordData.currentPassword}
                 onChange={(e) =>
                   setPasswordData({
                     ...passwordData,
-                    old_password: e.target.value,
+                    currentPassword: e.target.value,
                   })
                 }
                 required
@@ -177,16 +199,16 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="new_password">New Password</Label>
+              <Label htmlFor="newPassword">New Password</Label>
               <Input
-                id="new_password"
+                id="newPassword"
                 type="password"
                 placeholder="Min. 8 characters"
-                value={passwordData.new_password}
+                value={passwordData.newPassword}
                 onChange={(e) =>
                   setPasswordData({
                     ...passwordData,
-                    new_password: e.target.value,
+                    newPassword: e.target.value,
                   })
                 }
                 required
@@ -195,16 +217,16 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirm_password">Confirm New Password</Label>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <Input
-                id="confirm_password"
+                id="confirmPassword"
                 type="password"
                 placeholder="Re-enter new password"
-                value={passwordData.confirm_password}
+                value={passwordData.confirmPassword}
                 onChange={(e) =>
                   setPasswordData({
                     ...passwordData,
-                    confirm_password: e.target.value,
+                    confirmPassword: e.target.value,
                   })
                 }
                 required

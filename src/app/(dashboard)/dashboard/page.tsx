@@ -12,7 +12,6 @@ import { PaymentMethodModal } from "@/components/PaymentMethodModal";
 import { QRISModal } from "@/components/QRISModal";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { AxiosError } from "axios";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -80,9 +79,8 @@ export default function DashboardPage() {
         }
         toast.success("Redirecting to payment page...");
       }
-    } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      toast.error(error.response?.data?.message || "Failed to create payment");
+    } catch (error) {
+      toast.error("Failed to create payment");
     }
   };
 
@@ -128,79 +126,22 @@ export default function DashboardPage() {
     },
   ];
 
-  // Helper function to get trial end date message
-  const getTrialEndMessage = () => {
-    if (stats.client.trial_days_remaining !== undefined) {
-      const daysRemaining = stats.client.trial_days_remaining;
-      if (daysRemaining > 0) {
-        return `Your trial ends in ${daysRemaining} day${
-          daysRemaining !== 1 ? "s" : ""
-        }. Please complete payment before trial expires.`;
-      }
-      return "Your trial has ended. Please complete payment to continue using the service.";
-    }
-    return "Please complete payment to activate your account.";
-  };
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Dashboard
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Welcome back, {stats.client.business_name}
         </p>
       </div>
-
-      {/* Payment Notification - Static Warning */}
-      {(stats.client.status === "trial" ||
-        stats.client.status === "suspended") &&
-        pendingInvoice && (
-          <Alert
-            variant={
-              stats.client.status === "suspended" ? "destructive" : "default"
-            }
-            className="mb-6"
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="font-semibold">
-              {stats.client.status === "trial"
-                ? "Trial Account - Payment Required"
-                : "Account Suspended"}
-            </AlertTitle>
-            <AlertDescription className="mt-2">
-              <p className="mb-3">
-                {stats.client.status === "trial"
-                  ? getTrialEndMessage()
-                  : `Your account has been suspended. Payment is overdue since ${format(
-                      new Date(pendingInvoice.due_date),
-                      "dd MMMM yyyy"
-                    )}.`}
-              </p>
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={() => handlePayNow(pendingInvoice)}
-                  variant={
-                    stats.client.status === "suspended"
-                      ? "destructive"
-                      : "default"
-                  }
-                >
-                  Pay Now - Rp{" "}
-                  {pendingInvoice.total_amount.toLocaleString("id-ID")}
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Invoice: {pendingInvoice.invoice_number}
-                </span>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 {stat.title}
               </CardTitle>
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
@@ -220,17 +161,19 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total Sent</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Total Sent
+                </span>
                 <span className="font-semibold">{stats.reminders.sent}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Failed</span>
+                <span className="text-gray-600 dark:text-gray-400">Failed</span>
                 <span className="font-semibold text-red-600">
                   {stats.reminders.failed}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total</span>
+                <span className="text-gray-600 dark:text-gray-400">Total</span>
                 <span className="font-semibold">{stats.reminders.total}</span>
               </div>
             </div>
@@ -245,26 +188,34 @@ export default function DashboardPage() {
             {pendingInvoice ? (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Invoice</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Invoice
+                  </span>
                   <span className="font-semibold">
                     {pendingInvoice.invoice_number}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Amount</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Amount
+                  </span>
                   <span className="font-semibold">
                     Rp {pendingInvoice.total_amount.toLocaleString("id-ID")}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Status</span>
-                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Status
+                  </span>
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-500">
                     {pendingInvoice.status}
                   </span>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500">No pending invoice</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                No pending invoice
+              </p>
             )}
           </CardContent>
         </Card>

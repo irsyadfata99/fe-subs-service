@@ -133,31 +133,16 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Info: Auto-generate H-7 */}
-      {currentBilling && currentBilling.client.status !== "trial" && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Automatic Billing</AlertTitle>
-          <AlertDescription>
-            Invoices are automatically generated 7 days before your billing
-            date.
-            <br />
-            <strong>Next billing date:</strong> Day{" "}
-            {currentBilling.client.billing_date} of each month
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Suspended Alert */}
-      {currentBilling && currentBilling.client.status === "suspended" && (
+      {/* {currentBilling && currentBilling.client.status === "suspended" && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Your account is suspended. Please pay your pending invoice to
-            reactivate.
+            Akun Anda tersuspend. Silakan bayar invoice untuk mengaktifkan
+            kembali.
           </AlertDescription>
         </Alert>
-      )}
+      )} */}
 
       {/* Invoice History */}
       <Card>

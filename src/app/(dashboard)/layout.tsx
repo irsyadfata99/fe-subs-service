@@ -7,24 +7,49 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { TrialWarningBanner } from "@/components/TrialWarningBanner";
+import { TrialBanner } from "@/components/TrialBanner";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
+import { PaymentMethodModal } from "@/components/PaymentMethodModal";
+import { QRISModal } from "@/components/QRISModal";
 import { Shield } from "lucide-react";
 import api from "@/lib/api";
-import { LayoutDashboard, Users, Bell, CreditCard, Settings, LogOut, Menu } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  Bell,
+  CreditCard,
+  Settings,
+  LogOut,
+  Menu,
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface PendingInvoice {
+  id: number;
+  invoice_number: string;
   checkout_url?: string;
   total_amount: number;
   due_date: string;
+  qr_url?: string;
+  expired_at?: string;
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
+  const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(
+    null
+  );
   const [loadingInvoice, setLoadingInvoice] = useState(true);
+
+  // Payment modals
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showQRIS, setShowQRIS] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,10 +57,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
-  // Fetch pending invoice for suspended accounts
+  // Fetch pending invoice
   useEffect(() => {
     const fetchPendingInvoice = async () => {
-      if (user?.status === "suspended") {
+      if (user?.status === "trial" || user?.status === "suspended") {
         try {
           const response = await api.get("/billing/invoices", {
             params: { status: "pending", limit: 1 },
@@ -59,6 +84,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user]);
 
+  const handlePayNow = () => {
+    if (pendingInvoice) {
+      setShowPaymentModal(true);
+    } else {
+      toast.error("No pending invoice found");
+    }
+  };
+
+  const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
+    if (!pendingInvoice) return;
+
+    try {
+      const response = await api.post(
+        `/billing/invoices/${pendingInvoice.id}/pay`,
+        {
+          payment_method: method,
+        }
+      );
+
+      const updatedInvoice = response.data.data.invoice;
+      setShowPaymentModal(false);
+      setPendingInvoice(updatedInvoice);
+
+      if (method === "QRIS") {
+        setShowQRIS(true);
+      } else if (updatedInvoice.checkout_url) {
+        window.open(updatedInvoice.checkout_url, "_blank");
+        toast.success("Redirecting to payment page...");
+      }
+    } catch {
+      toast.error("Failed to create payment");
+    }
+  };
+
   if (loading || loadingInvoice) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -73,39 +132,64 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "End Users", href: "/end-users", icon: Users },
     { name: "Reminders", href: "/reminders", icon: Bell },
-    ...(user.role === "client" ? [{ name: "Billing", href: "/billing", icon: CreditCard }] : []),
+    ...(user.role === "client"
+      ? [{ name: "Billing", href: "/billing", icon: CreditCard }]
+      : []),
     { name: "Settings", href: "/settings", icon: Settings },
-    ...(user.role === "super_admin" ? [{ name: "Admin Panel", href: "/admin", icon: Shield }] : []),
+    ...(user.role === "super_admin"
+      ? [{ name: "Admin Panel", href: "/admin", icon: Shield }]
+      : []),
   ];
 
-  const trialDaysRemaining = user.trial_ends_at ? Math.max(0, Math.ceil((new Date(user.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+  const trialDaysRemaining = user.trial_ends_at
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(user.trial_ends_at).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24)
+        )
+      )
+    : 0;
 
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        {/* Trial Expired Modal - Blocks Everything */}
-        {user.status === "suspended" && <TrialExpiredModal isOpen={true} invoiceUrl={pendingInvoice?.checkout_url} amount={pendingInvoice?.total_amount || user.monthly_bill} dueDate={pendingInvoice?.due_date} />}
+        {user.status === "suspended" && (
+          <TrialExpiredModal
+            isOpen={true}
+            invoiceUrl={pendingInvoice?.checkout_url}
+            amount={pendingInvoice?.total_amount || user.monthly_bill}
+            dueDate={pendingInvoice?.due_date}
+          />
+        )}
 
-        {/* Mobile sidebar backdrop */}
-        {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        {/* Sidebar */}
         <aside
-          className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-card border-r border-border
-          transform transition-transform duration-200 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-        `}
+          className={`fixed top-0 left-0 z-50 h-full w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0`}
         >
           <div className="p-6">
             <h1 className="text-xl font-bold">Payment Reminder</h1>
-            <p className="text-sm text-muted-foreground mt-1">{user.business_name}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {user.business_name}
+            </p>
           </div>
 
           <nav className="px-4 space-y-1">
             {navigation.map((item) => (
-              <Link key={item.name} href={item.href} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition-colors" onClick={() => setSidebarOpen(false)}>
+              <Link
+                key={item.name}
+                href={item.href}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition-colors"
+                onClick={() => setSidebarOpen(false)}
+              >
                 <item.icon className="w-5 h-5" />
                 <span>{item.name}</span>
               </Link>
@@ -113,50 +197,82 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
-            <Button variant="ghost" className="w-full justify-start" onClick={logout}>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={logout}
+            >
               <LogOut className="w-5 h-5 mr-3" />
               Logout
             </Button>
           </div>
         </aside>
 
-        {/* Main content */}
         <div className="lg:pl-64">
-          {/* Top bar */}
           <header className="bg-card border-b border-border sticky top-0 z-30">
             <div className="flex items-center justify-between px-6 py-4">
-              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setSidebarOpen(true)}
+              >
                 <Menu className="w-6 h-6" />
               </Button>
-
               <div className="flex-1" />
-
               <div className="flex items-center gap-4">
                 <ThemeToggle />
                 {user.status === "trial" && (
                   <div className="text-sm hidden sm:block">
                     <span className="text-muted-foreground">Trial: </span>
-                    <span className="font-medium text-primary">{trialDaysRemaining} days left</span>
+                    <span className="font-medium text-primary">
+                      {trialDaysRemaining} days left
+                    </span>
                   </div>
                 )}
               </div>
             </div>
           </header>
 
-          {/* Page content */}
           <main className="p-6">
-            {/* Trial Warning Banner */}
-            {user.status === "trial" && trialDaysRemaining <= 7 && (
-              <TrialWarningBanner
-                daysRemaining={trialDaysRemaining}
-                monthlyBill={typeof user.monthly_bill === "number" ? user.monthly_bill : 0} // ← Verify this line
-                onUpgrade={() => router.push("/billing")}
+            {user.status === "trial" && (
+              <TrialBanner
+                trialEndsAt={user.trial_ends_at}
+                monthlyBill={
+                  typeof user.monthly_bill === "number" ? user.monthly_bill : 0
+                }
+                onPayNow={handlePayNow}
               />
             )}
 
             {children}
           </main>
         </div>
+
+        {/* Payment Modals */}
+        {pendingInvoice && (
+          <>
+            <PaymentMethodModal
+              isOpen={showPaymentModal}
+              onClose={() => setShowPaymentModal(false)}
+              onSelect={handlePaymentMethodSelect}
+              amount={pendingInvoice.total_amount}
+              invoiceNumber={pendingInvoice.invoice_number}
+            />
+
+            {pendingInvoice.qr_url && pendingInvoice.expired_at && (
+              <QRISModal
+                isOpen={showQRIS}
+                onClose={() => setShowQRIS(false)}
+                invoiceId={pendingInvoice.id}
+                invoiceNumber={pendingInvoice.invoice_number}
+                amount={pendingInvoice.total_amount}
+                qrUrl={pendingInvoice.qr_url}
+                expiredAt={pendingInvoice.expired_at}
+              />
+            )}
+          </>
+        )}
       </div>
     </ErrorBoundary>
   );

@@ -114,6 +114,7 @@ export interface DashboardStats {
     business_name: string;
     status: string;
     trial_days_remaining: number;
+    trial_ends_at: string;
   };
   users: {
     total: number;
