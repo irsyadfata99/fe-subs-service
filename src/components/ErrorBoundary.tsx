@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Component, ReactNode } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
@@ -27,6 +28,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+
+    // Send to Sentry
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      Sentry.captureException(error, {
+        contexts: {
+          react: {
+            componentStack: errorInfo.componentStack,
+          },
+        },
+      });
+    }
   }
 
   render() {
@@ -45,31 +57,18 @@ export class ErrorBoundary extends Component<Props, State> {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600">
-                An unexpected error occurred. Please try refreshing the page.
-              </p>
+              <p className="text-sm text-gray-600">An unexpected error occurred. Please try refreshing the page.</p>
               {process.env.NODE_ENV === "development" && this.state.error && (
                 <details className="text-xs bg-gray-100 p-3 rounded">
-                  <summary className="cursor-pointer font-medium">
-                    Error Details
-                  </summary>
-                  <pre className="mt-2 overflow-auto">
-                    {this.state.error.toString()}
-                  </pre>
+                  <summary className="cursor-pointer font-medium">Error Details</summary>
+                  <pre className="mt-2 overflow-auto">{this.state.error.toString()}</pre>
                 </details>
               )}
               <div className="flex gap-2">
-                <Button
-                  onClick={() => window.location.reload()}
-                  className="flex-1"
-                >
+                <Button onClick={() => window.location.reload()} className="flex-1">
                   Refresh Page
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => (window.location.href = "/dashboard")}
-                  className="flex-1"
-                >
+                <Button variant="outline" onClick={() => (window.location.href = "/dashboard")} className="flex-1">
                   Go to Dashboard
                 </Button>
               </div>

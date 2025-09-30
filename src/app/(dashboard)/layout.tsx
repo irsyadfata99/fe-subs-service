@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TrialWarningBanner } from "@/components/TrialWarningBanner";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
+import { Shield } from "lucide-react";
 import api from "@/lib/api";
 import { LayoutDashboard, Users, Bell, CreditCard, Settings, LogOut, Menu } from "lucide-react";
 
@@ -72,6 +73,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "End Users", href: "/end-users", icon: Users },
     { name: "Reminders", href: "/reminders", icon: Bell },
+    // Hide billing for admin/super_admin
+    ...(user.role === "client" ? [{ name: "Billing", href: "/billing", icon: CreditCard }] : []),
+    { name: "Settings", href: "/settings", icon: Settings },
+    // Show admin panel only for super_admin
+    ...(user.role === "super_admin" ? [{ name: "Admin Panel", href: "/admin", icon: Shield }] : []),
     { name: "Billing", href: "/billing", icon: CreditCard },
     { name: "Settings", href: "/settings", icon: Settings },
   ];

@@ -7,9 +7,11 @@ export interface Client {
   contact_whatsapp?: string; // ← NEW
   logo_url?: string;
   status: "trial" | "active" | "suspended";
+  role: "client" | "admin" | "super_admin"; // ← ADD THIS
   trial_ends_at: string;
   total_users: number;
   monthly_bill: number;
+  last_active_at: string; // ← ADD THIS
   created_at: string;
 }
 
@@ -54,9 +56,57 @@ export interface Invoice {
   total_amount: number;
   due_date: string;
   status: "pending" | "paid" | "overdue" | "expired" | "cancelled";
+  payment_method_selected?: "BCA_VA" | "QRIS"; // ← ADD THIS
   checkout_url?: string;
+  qr_url?: string; // ← ADD THIS
+  qr_string?: string; // ← ADD THIS
   paid_at?: string;
+  expired_at?: string; // ← ADD THIS
   created_at: string;
+}
+
+// NEW TYPES
+export interface AdminStats {
+  clients: {
+    total: number;
+    trial: number;
+    active: number;
+    overdue: number;
+    suspended: number;
+  };
+  end_users: {
+    total: number;
+  };
+  revenue: {
+    this_month: number;
+  };
+  reminders: {
+    today: {
+      sent: number;
+      failed: number;
+    };
+  };
+  system: {
+    database: {
+      status: string;
+      message: string;
+    };
+    memory: {
+      rss: string;
+      heapUsed: string;
+      heapTotal: string;
+    };
+  };
+}
+
+export interface PricingAdjustment {
+  id: number;
+  client_id: number;
+  old_price: number;
+  new_price: number;
+  reason: string;
+  adjusted_by: number;
+  adjusted_at: string;
 }
 
 export interface DashboardStats {
