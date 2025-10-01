@@ -1,9 +1,7 @@
 "use client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { AlertCircle, Clock, CreditCard, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import { useEffect, useState } from "react";
+import { AlertTriangle, X } from "lucide-react";
 
 interface TrialBannerProps {
   trialEndsAt: string;
@@ -12,147 +10,85 @@ interface TrialBannerProps {
     id: number;
     invoice_number: string;
     total_amount: number;
-    due_date: string;
-    payment_method_selected?: "BCA_VA" | "QRIS";
-    checkout_url?: string;
-    qr_url?: string;
+    payment_method_selected: "BCA_VA" | "QRIS" | null;
   } | null;
   onPayNow: () => void;
   isLoadingInvoice?: boolean;
 }
 
-export function TrialBanner({
-  trialEndsAt,
-  monthlyBill,
-  pendingInvoice,
-  onPayNow,
-  isLoadingInvoice = false,
-}: TrialBannerProps) {
-  const now = new Date();
-  const trialEnd = new Date(trialEndsAt);
-  const daysRemaining = Math.max(
-    0,
-    Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  );
+export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, onPayNow, isLoadingInvoice = false }: TrialBannerProps) {
+  const [daysLeft, setDaysLeft] = useState(0);
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  // Don't show if more than 7 days remaining
-  if (daysRemaining > 7) return null;
+  useEffect(() => {
+    const calculateDaysLeft = () => {
+      const now = new Date();
+      const endDate = new Date(trialEndsAt);
+      const diff = endDate.getTime() - now.getTime();
+      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      setDaysLeft(days);
+    };
 
-  const getSeverity = () => {
-    if (daysRemaining <= 1) return "error";
-    if (daysRemaining <= 3) return "warning";
-    return "info";
+    calculateDaysLeft();
+    const interval = setInterval(calculateDaysLeft, 1000 * 60 * 60); // Update every hour
+
+    return () => clearInterval(interval);
+  }, [trialEndsAt]);
+
+  if (isDismissed || daysLeft > 7) return null;
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
   };
 
-  const severity = getSeverity();
-
-  const bgColor =
-    severity === "error"
-      ? "bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800"
-      : severity === "warning"
-      ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800"
-      : "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800";
-
-  const textColor =
-    severity === "error"
-      ? "text-red-900 dark:text-red-100"
-      : severity === "warning"
-      ? "text-yellow-900 dark:text-yellow-100"
-      : "text-blue-900 dark:text-blue-100";
-
-  const iconColor =
-    severity === "error"
-      ? "text-red-600 dark:text-red-400"
-      : severity === "warning"
-      ? "text-yellow-600 dark:text-yellow-400"
-      : "text-blue-600 dark:text-blue-400";
-
-  const getMessage = () => {
-    if (daysRemaining === 0) return "Trial berakhir hari ini!";
-    if (daysRemaining === 1) return "Trial berakhir besok!";
-    return `Trial berakhir dalam ${daysRemaining} hari`;
-  };
-
-  // Calculate display amount: use invoice if available, fallback to monthlyBill
-  const displayAmount = pendingInvoice?.total_amount || monthlyBill;
+  const billingAmount = pendingInvoice?.total_amount || monthlyBill;
+  const buttonLabel = pendingInvoice?.payment_method_selected ? `Bayar via ${pendingInvoice.payment_method_selected === "BCA_VA" ? "BCA VA" : "QRIS"}` : "Pilih Metode Pembayaran";
 
   return (
-    <Alert className={`${bgColor} mb-6`}>
-      {daysRemaining <= 1 ? (
-        <AlertCircle className={`h-5 w-5 ${iconColor}`} />
-      ) : (
-        <Clock className={`h-5 w-5 ${iconColor}`} />
-      )}
-      <AlertTitle className={`font-semibold text-lg ${textColor}`}>
-        {getMessage()}
-      </AlertTitle>
-      <AlertDescription className={`mt-3 ${textColor}`}>
-        <div className="space-y-3">
-          <p className="font-medium">
-            Trial akan berakhir pada{" "}
-            <strong>{format(trialEnd, "dd MMMM yyyy")}</strong>. Mohon segera
-            lakukan pembayaran sebelum seluruh fungsi tersuspend.
+    <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-6 relative overflow-hidden">
+      <button onClick={() => setIsDismissed(true)} className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition-colors">
+        <X className="w-5 h-5" />
+      </button>
+
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+
+        <div className="flex-1">
+          <h3 className="text-xl font-bold mb-2">{daysLeft > 0 ? `Trial berakhir dalam ${daysLeft} hari` : "Trial telah berakhir"}</h3>
+
+          <p className="text-white/90 mb-4">
+            {daysLeft > 0
+              ? `Masa trial Anda akan berakhir pada ${new Date(trialEndsAt).toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}. Lakukan pembayaran untuk melanjutkan layanan.`
+              : "Silakan lakukan pembayaran untuk mengaktifkan kembali layanan Anda."}
           </p>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-white/50 dark:bg-black/20">
-            <div className="flex-1">
-              <div className="text-sm opacity-90">Tagihan Anda</div>
-              <div className="text-2xl font-bold">
-                Rp {displayAmount.toLocaleString("id-ID")}
-              </div>
-              {isLoadingInvoice && (
-                <div className="flex items-center gap-2 text-xs mt-1 opacity-75">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Memproses invoice...</span>
-                </div>
-              )}
-              {!isLoadingInvoice && pendingInvoice && (
-                <div className="text-xs mt-1 opacity-75">
-                  Invoice: {pendingInvoice.invoice_number}
-                  <br />
-                  Jatuh tempo:{" "}
-                  {format(new Date(pendingInvoice.due_date), "dd MMM yyyy")}
-                </div>
-              )}
-              {!isLoadingInvoice && !pendingInvoice && (
-                <div className="text-xs mt-1 opacity-75 text-yellow-600 dark:text-yellow-400">
-                  ⚠️ Invoice sedang diproses...
-                </div>
-              )}
+          <div className="bg-white/20 rounded-lg p-4 mb-4">
+            <div className="flex justify-between items-center">
+              <span className="text-white/90">Tagihan Bulanan:</span>
+              <span className="text-2xl font-bold">{formatCurrency(billingAmount)}</span>
             </div>
-
-            <Button
-              onClick={onPayNow}
-              size="lg"
-              disabled={isLoadingInvoice || !pendingInvoice}
-              className={`gap-2 ${
-                severity === "error"
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-blue-600 hover:bg-blue-700"
-              } text-white`}
-            >
-              {isLoadingInvoice ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-5 w-5" />
-                  Bayar Sekarang
-                </>
-              )}
-            </Button>
+            {pendingInvoice && (
+              <div className="mt-2 pt-2 border-t border-white/20">
+                <span className="text-sm text-white/80">Invoice: {pendingInvoice.invoice_number}</span>
+              </div>
+            )}
           </div>
 
-          {!isLoadingInvoice && !pendingInvoice && (
-            <p className="text-sm opacity-75">
-              Invoice akan dibuat otomatis. Silakan refresh halaman dalam
-              beberapa detik jika belum muncul.
-            </p>
-          )}
+          <button onClick={onPayNow} disabled={isLoadingInvoice} className="w-full sm:w-auto px-6 py-3 bg-white text-orange-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {isLoadingInvoice ? "Memuat..." : buttonLabel}
+          </button>
         </div>
-      </AlertDescription>
-    </Alert>
+      </div>
+    </div>
   );
 }

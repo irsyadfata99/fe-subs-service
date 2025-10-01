@@ -1,274 +1,324 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Users, AlertCircle, DollarSign } from "lucide-react";
-import { DashboardStats, Invoice } from "@/types";
-import { Skeleton } from "@/components/ui/skeleton";
-import { PaymentMethodModal } from "@/components/PaymentMethodModal";
-import { QRISModal } from "@/components/QRISModal";
-import { format } from "date-fns";
-import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import api from "@/lib/axios";
+import { Users, Send, DollarSign } from "lucide-react";
+import TrialBanner from "@/components/TrialBanner";
+import toast from "react-hot-toast";
+import PaymentMethodModal from "@/components/modals/PaymentMethodModal";
+import BCAVAModal from "@/components/modals/BCAVAModal";
+import QRISModal from "@/components/modals/QRISModal";
+
+// ✅ ADD TYPE DEFINITIONS
+interface DashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  remindersSentThisMonth: number;
+}
+
+interface User {
+  id: number;
+  business_name: string;
+  status: string;
+  trial_ends_at: string;
+  monthly_bill: number;
+}
+
+// ✅ ADD THIS
+interface PendingInvoice {
+  id: number;
+  invoice_number: string;
+  total_amount: number;
+  payment_method_selected: "BCA_VA" | "QRIS" | null;
+  tripay_reference?: string;
+  tripay_payment_url?: string;
+  tripay_qr_url?: string;
+  tripay_va_number?: string;
+  tripay_expired_time?: string;
+}
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [pendingInvoice, setPendingInvoice] = useState<Invoice | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
 
-  // Payment modals
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showQRIS, setShowQRIS] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  // Modal states
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [showBCAModal, setShowBCAModal] = useState(false);
+  const [showQRISModal, setShowQRISModal] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
-    fetchStats();
-    fetchPendingInvoice();
+    fetchDashboardData();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const response = await api.get("/dashboard/stats");
-      setStats(response.data.data);
+      const [statsRes, userRes] = await Promise.all([api.get("/dashboard/stats"), api.get("/auth/me")]);
+
+      setStats(statsRes.data);
+      setUser(userRes.data);
+
+      // If user is in trial period (H-7 or less), check for pending invoice
+      if (userRes.data.status === "trial") {
+        const trialEndsAt = new Date(userRes.data.trial_ends_at);
+        const now = new Date();
+        const daysLeft = Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysLeft <= 7) {
+          await checkTrialInvoice();
+        }
+      }
     } catch (error) {
-      console.error("Failed to fetch stats:", error);
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPendingInvoice = async () => {
+  const checkTrialInvoice = async () => {
+    setLoadingInvoice(true);
     try {
-      const res = await api.get("/billing/invoices?status=pending&limit=1");
-      if (res.data.data.invoices && res.data.data.invoices.length > 0) {
-        setPendingInvoice(res.data.data.invoices[0]);
-      }
+      const { data } = await api.get("/billing/check-trial-invoice");
+      setPendingInvoice(data.invoice);
     } catch (error) {
-      console.error("Failed to fetch pending invoice:", error);
+      console.error("Failed to check trial invoice:", error);
+    } finally {
+      setLoadingInvoice(false);
     }
   };
 
-  const handlePayNow = (invoice: Invoice) => {
-    const isExpired =
-      invoice.expired_at && new Date(invoice.expired_at).getTime() < Date.now();
-
-    if (!invoice.payment_method_selected || isExpired) {
-      setSelectedInvoice(invoice);
-      setShowPaymentModal(true);
+  const handlePayNow = () => {
+    if (!pendingInvoice) {
+      toast.error("Invoice tidak ditemukan");
       return;
     }
 
-    if (invoice.payment_method_selected === "QRIS" && invoice.qr_url) {
-      setSelectedInvoice(invoice);
-      setShowQRIS(true);
-    } else if (invoice.checkout_url) {
-      window.open(invoice.checkout_url, "_blank");
+    // Check if payment method already selected
+    if (pendingInvoice.payment_method_selected) {
+      // Check if payment expired
+      if (pendingInvoice.tripay_expired_time && new Date(pendingInvoice.tripay_expired_time) < new Date()) {
+        // Payment expired - show selection modal
+        setShowPaymentMethodModal(true);
+      } else {
+        // Valid payment exists - show respective modal
+        if (pendingInvoice.payment_method_selected === "BCA_VA") {
+          setShowBCAModal(true);
+        } else {
+          setShowQRISModal(true);
+        }
+      }
+    } else {
+      // No payment method selected yet - show selection modal
+      setShowPaymentMethodModal(true);
     }
   };
 
-  const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
-    if (!selectedInvoice) return;
-
+  const handleSelectPaymentMethod = async (method: "BCA_VA" | "QRIS") => {
+    if (!pendingInvoice) return;
+    setProcessingPayment(true);
     try {
-      const isExpired =
-        selectedInvoice.expired_at &&
-        new Date(selectedInvoice.expired_at).getTime() < Date.now();
+      const { data } = await api.post(`/billing/invoices/${pendingInvoice.id}/create-payment`, {
+        payment_method: method,
+      });
 
-      let response;
+      toast.success("Payment berhasil dibuat!");
 
-      if (selectedInvoice.payment_method_selected === method && isExpired) {
-        response = await api.post(
-          `/billing/invoices/${selectedInvoice.id}/regenerate-payment`
-        );
-      } else {
-        response = await api.post(
-          `/billing/invoices/${selectedInvoice.id}/pay`,
-          {
-            payment_method: method,
-          }
-        );
-      }
+      // Close payment method modal
+      setShowPaymentMethodModal(false);
 
-      const updatedInvoice = response.data.data.invoice;
-      setShowPaymentModal(false);
+      // Update pending invoice with new payment data
+      const updatedInvoice = {
+        ...pendingInvoice,
+        payment_method_selected: method,
+        tripay_reference: data.payment.tripay_reference,
+        tripay_payment_url: data.payment.tripay_payment_url,
+        tripay_qr_url: data.payment.tripay_qr_url,
+        tripay_va_number: data.payment.tripay_va_number,
+        tripay_expired_time: data.payment.tripay_expired_time,
+      };
       setPendingInvoice(updatedInvoice);
 
-      if (method === "QRIS") {
-        setSelectedInvoice(updatedInvoice);
-        setShowQRIS(true);
-      } else if (updatedInvoice.checkout_url) {
-        window.open(updatedInvoice.checkout_url, "_blank");
-        toast.success("Redirecting to payment page...");
+      // Open respective payment modal
+      if (method === "BCA_VA") {
+        // Redirect to Tripay for BCA VA
+        if (data.payment.tripay_payment_url) {
+          window.open(data.payment.tripay_payment_url, "_blank");
+        }
+        setShowBCAModal(true);
+      } else {
+        setShowQRISModal(true);
       }
     } catch (error) {
-      toast.error("Failed to create payment");
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || "Failed to create payment");
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-32 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!stats) return null;
-
-  const statCards = [
-    {
-      title: "Total Users",
-      value: stats.users.total,
-      icon: Users,
-      color: "text-blue-600",
-    },
-    {
-      title: "Active Users",
-      value: stats.users.active,
-      icon: Users,
-      color: "text-green-600",
-    },
-    {
-      title: "Overdue Users",
-      value: stats.users.overdue,
-      icon: AlertCircle,
-      color: "text-red-600",
-    },
-    {
-      title: "Monthly Bill",
-      value: `Rp ${stats.billing.monthly_bill.toLocaleString("id-ID")}`,
-      icon: DollarSign,
-      color: "text-purple-600",
-    },
-  ];
-
   return (
     <div className="space-y-6">
+      {/* Trial Banner */}
+      {user?.status === "trial" && (
+        <TrialBanner trialEndsAt={user.trial_ends_at} monthlyBill={typeof user.monthly_bill === "number" ? user.monthly_bill : 0} pendingInvoice={pendingInvoice} onPayNow={handlePayNow} isLoadingInvoice={loadingInvoice} />
+      )}
+
+      {/* Welcome Section */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Dashboard
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Welcome back, {stats.client.business_name}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back, {user?.business_name}!</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Ini yang terjadi dengan akun anda hari ini.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Reminders Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">
-                  Total Sent
-                </span>
-                <span className="font-semibold">{stats.reminders.sent}</span>
+      {/* Stats Grid */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Total Users */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{stats.totalUsers}</p>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">Failed</span>
-                <span className="font-semibold text-red-600">
-                  {stats.reminders.failed}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 dark:text-gray-400">Total</span>
-                <span className="font-semibold">{stats.reminders.total}</span>
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="mt-4 flex items-center text-sm">
+              <span className="text-green-600 dark:text-green-400 font-medium">+{stats.activeUsers} active</span>
+            </div>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Billing Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pendingInvoice ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Invoice
-                  </span>
-                  <span className="font-semibold">
-                    {pendingInvoice.invoice_number}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Amount
-                  </span>
-                  <span className="font-semibold">
-                    Rp {pendingInvoice.total_amount.toLocaleString("id-ID")}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Status
-                  </span>
-                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-500">
-                    {pendingInvoice.status}
-                  </span>
-                </div>
+          {/* Active Users */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Users</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{stats.activeUsers}</p>
               </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400">
-                No pending invoice
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">{stats.totalUsers > 0 ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0}% of total</span>
+            </div>
+          </div>
+
+          {/* Reminders Sent */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Reminders (This Month)</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{stats.remindersSentThisMonth}</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                <Send className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Automated via WhatsApp</span>
+            </div>
+          </div>
+
+          {/* Monthly Bill */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Monthly Bill</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                  {new Intl.NumberFormat("id-ID", {
+                    style: "currency",
+                    currency: "IDR",
+                    minimumFractionDigits: 0,
+                  }).format(user?.monthly_bill || 0)}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Status: {user?.status === "trial" ? "Trial" : user?.status}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onClick={() => router.push("/end-users")} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-2" />
+            <h3 className="font-medium text-gray-900 dark:text-white">Manage Users</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Add or edit end users</p>
+          </button>
+
+          <button onClick={() => router.push("/reminders")} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+            <Send className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-2" />
+            <h3 className="font-medium text-gray-900 dark:text-white">View Reminders</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Check reminder history</p>
+          </button>
+
+          <button onClick={() => router.push("/billing")} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+            <DollarSign className="w-6 h-6 text-orange-600 dark:text-orange-400 mb-2" />
+            <h3 className="font-medium text-gray-900 dark:text-white">Billing</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">View invoices and payments</p>
+          </button>
+        </div>
       </div>
 
-      {/* Payment Method Modal */}
-      {selectedInvoice && (
-        <PaymentMethodModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          onSelect={handlePaymentMethodSelect}
-          amount={selectedInvoice.total_amount}
-          invoiceNumber={selectedInvoice.invoice_number}
+      {/* Payment Method Selection Modal */}
+      <PaymentMethodModal isOpen={showPaymentMethodModal} onClose={() => setShowPaymentMethodModal(false)} onSelectMethod={handleSelectPaymentMethod} isLoading={processingPayment} />
+
+      {/* BCA VA Modal */}
+      {pendingInvoice && (
+        <BCAVAModal
+          isOpen={showBCAModal}
+          onClose={() => {
+            setShowBCAModal(false);
+            checkTrialInvoice(); // Refresh invoice data
+          }}
+          vaNumber={pendingInvoice.tripay_va_number || ""}
+          amount={pendingInvoice.total_amount}
+          expiredTime={pendingInvoice.tripay_expired_time || ""}
+          paymentUrl={pendingInvoice.tripay_payment_url || ""}
+          invoiceNumber={pendingInvoice.invoice_number}
         />
       )}
 
       {/* QRIS Modal */}
-      {selectedInvoice &&
-        selectedInvoice.qr_url &&
-        selectedInvoice.expired_at && (
-          <QRISModal
-            isOpen={showQRIS}
-            onClose={() => setShowQRIS(false)}
-            invoiceId={selectedInvoice.id}
-            invoiceNumber={selectedInvoice.invoice_number}
-            amount={selectedInvoice.total_amount}
-            qrUrl={selectedInvoice.qr_url}
-            expiredAt={selectedInvoice.expired_at}
-          />
-        )}
+      {pendingInvoice && (
+        <QRISModal
+          isOpen={showQRISModal}
+          onClose={() => {
+            setShowQRISModal(false);
+            checkTrialInvoice(); // Refresh invoice data
+          }}
+          qrUrl={pendingInvoice.tripay_qr_url || ""}
+          amount={pendingInvoice.total_amount}
+          expiredTime={pendingInvoice.tripay_expired_time || ""}
+          reference={pendingInvoice.tripay_reference || ""}
+          invoiceNumber={pendingInvoice.invoice_number}
+        />
+      )}
     </div>
   );
 }

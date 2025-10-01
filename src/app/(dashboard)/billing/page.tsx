@@ -1,393 +1,345 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import api from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Invoice } from "@/types";
-import { format } from "date-fns";
-import { ExternalLink, AlertCircle, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { PaymentMethodModal } from "@/components/PaymentMethodModal";
-import { QRISModal } from "@/components/QRISModal";
-import { AxiosError } from "axios";
+import { useEffect, useState } from "react";
+import api from "@/lib/axios";
+import { Calendar, DollarSign, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import toast from "react-hot-toast";
+import PaymentMethodModal from "@/components/modals/PaymentMethodModal";
+import BCAVAModal from "@/components/modals/BCAVAModal";
+import QRISModal from "@/components/modals/QRISModal";
 
-interface CurrentBillingData {
-  client: {
-    status: string;
-    total_users: number;
-    billing_date: number;
+interface Invoice {
+  id: number;
+  invoice_number: string;
+  total_amount: number;
+  status: "pending" | "paid" | "overdue" | "cancelled";
+  due_date: string;
+  created_at: string;
+  payment_method_selected: "BCA_VA" | "QRIS" | null;
+  tripay_reference?: string;
+  tripay_payment_url?: string;
+  tripay_qr_url?: string;
+  tripay_va_number?: string;
+  tripay_expired_time?: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: {
+    invoices: Invoice[];
   };
-  trial_days_remaining: number;
-  monthly_bill_estimate: number;
+}
+
+interface PaymentResponse {
+  success: boolean;
+  message: string;
+  data: {
+    invoice: Invoice;
+    payment: {
+      tripay_reference: string;
+      tripay_payment_url: string;
+      tripay_qr_url: string | null;
+      tripay_va_number: string | null;
+      tripay_expired_time: string;
+    };
+  };
 }
 
 export default function BillingPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [currentBilling, setCurrentBillingData] =
-    useState<CurrentBillingData | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
-
-  // Payment modals
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [showQRIS, setShowQRIS] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  const fetchCurrentBilling = useCallback(async () => {
-    try {
-      const response = await api.get("/billing/current");
-      setCurrentBillingData(response.data.data);
-    } catch (error) {
-      console.error("Failed to fetch billing data:", error);
-    }
+  // Modal states
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [showBCAModal, setShowBCAModal] = useState(false);
+  const [showQRISModal, setShowQRISModal] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  useEffect(() => {
+    fetchInvoices();
   }, []);
 
-  const fetchInvoices = useCallback(async () => {
-    setLoading(true);
+  const fetchInvoices = async () => {
     try {
-      const response = await api.get("/billing/invoices", {
-        params: { page, limit: 10 },
-      });
-      setInvoices(response.data.data.invoices || response.data.data);
-      setTotalPages(response.data.data.pagination?.totalPages || 1);
+      const { data } = await api.get<ApiResponse>("/billing/invoices");
+      setInvoices(data.data.invoices);
     } catch (error) {
-      console.error("Failed to fetch invoices:", error);
+      const message = error instanceof Error ? error.message : "Failed to load invoices";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
-  }, [page]);
-
-  useEffect(() => {
-    fetchCurrentBilling();
-    fetchInvoices();
-  }, [fetchCurrentBilling, fetchInvoices]);
+  };
 
   const handlePayNow = (invoice: Invoice) => {
-    const isExpired =
-      invoice.expired_at && new Date(invoice.expired_at).getTime() < Date.now();
+    setSelectedInvoice(invoice);
 
-    // If no payment method OR expired, show modal
-    if (!invoice.payment_method_selected || isExpired) {
-      setSelectedInvoice(invoice);
-      setShowPaymentMethod(true);
-      return;
-    }
-
-    // If has valid payment method and not expired
-    if (invoice.payment_method_selected === "QRIS" && invoice.qr_url) {
-      setSelectedInvoice(invoice);
-      setShowQRIS(true);
-    } else if (invoice.checkout_url) {
-      window.open(invoice.checkout_url, "_blank");
+    // Check if payment method already selected
+    if (invoice.payment_method_selected) {
+      // Check if payment expired
+      if (invoice.tripay_expired_time && new Date(invoice.tripay_expired_time) < new Date()) {
+        // Payment expired - treat as new payment
+        setShowPaymentMethodModal(true);
+      } else {
+        // Valid payment exists - show respective modal
+        if (invoice.payment_method_selected === "BCA_VA") {
+          setShowBCAModal(true);
+        } else {
+          setShowQRISModal(true);
+        }
+      }
+    } else {
+      // No payment method selected yet - show selection modal
+      setShowPaymentMethodModal(true);
     }
   };
 
-  const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
+  const handleSelectPaymentMethod = async (method: "BCA_VA" | "QRIS") => {
     if (!selectedInvoice) return;
 
+    setProcessingPayment(true);
     try {
-      const isExpired =
-        selectedInvoice.expired_at &&
-        new Date(selectedInvoice.expired_at).getTime() < Date.now();
+      const { data } = await api.post<PaymentResponse>(`/billing/invoices/${selectedInvoice.id}/create-payment`, {
+        payment_method: method,
+      });
 
-      let response;
+      toast.success("Payment berhasil dibuat!");
 
-      // If payment method same and expired, regenerate
-      if (selectedInvoice.payment_method_selected === method && isExpired) {
-        response = await api.post(
-          `/billing/invoices/${selectedInvoice.id}/regenerate-payment`
-        );
-      } else {
-        // Create new payment
-        response = await api.post(
-          `/billing/invoices/${selectedInvoice.id}/pay`,
-          {
-            payment_method: method,
-          }
-        );
-      }
+      // Close payment method modal
+      setShowPaymentMethodModal(false);
 
-      const updatedInvoice = response.data.data.invoice;
-      setShowPaymentMethod(false);
-      setInvoices((prev) =>
-        prev.map((inv) => (inv.id === updatedInvoice.id ? updatedInvoice : inv))
-      );
+      // Update selected invoice with new payment data
+      setSelectedInvoice({
+        ...selectedInvoice,
+        payment_method_selected: method,
+        tripay_reference: data.data.payment.tripay_reference,
+        tripay_payment_url: data.data.payment.tripay_payment_url,
+        tripay_qr_url: data.data.payment.tripay_qr_url || undefined,
+        tripay_va_number: data.data.payment.tripay_va_number || undefined,
+        tripay_expired_time: data.data.payment.tripay_expired_time,
+      });
 
-      if (method === "QRIS") {
-        setSelectedInvoice(updatedInvoice);
-        setShowQRIS(true);
-      } else {
-        if (updatedInvoice.checkout_url) {
-          window.open(updatedInvoice.checkout_url, "_blank");
+      // Open respective payment modal
+      if (method === "BCA_VA") {
+        // Redirect to Tripay for BCA VA
+        if (data.data.payment.tripay_payment_url) {
+          window.open(data.data.payment.tripay_payment_url, "_blank");
         }
-        toast.success("Redirecting to payment page...");
+        setShowBCAModal(true);
+      } else {
+        setShowQRISModal(true);
       }
-    } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      toast.error(error.response?.data?.message || "Failed to create payment");
+
+      // Refresh invoices list
+      fetchInvoices();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create payment";
+      toast.error(message);
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      paid: "bg-green-100 text-green-800",
-      overdue: "bg-red-100 text-red-800",
-      expired: "bg-gray-100 text-gray-800",
-      cancelled: "bg-gray-100 text-gray-800",
+    const styles = {
+      pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+      paid: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+      overdue: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+      cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
     };
-    return <Badge className={variants[status] || ""}>{status}</Badge>;
+
+    const icons = {
+      pending: <Clock className="w-4 h-4" />,
+      paid: <CheckCircle2 className="w-4 h-4" />,
+      overdue: <XCircle className="w-4 h-4" />,
+      cancelled: <AlertCircle className="w-4 h-4" />,
+    };
+
+    const labels = {
+      pending: "Pending",
+      paid: "Paid",
+      overdue: "Overdue",
+      cancelled: "Cancelled",
+    };
+
+    return (
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
+        {icons[status as keyof typeof icons]}
+        {labels[status as keyof typeof labels]}
+      </span>
+    );
   };
+
+  const getPaymentMethodBadge = (method: string | null) => {
+    if (!method) return null;
+
+    const styles = {
+      BCA_VA: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+      QRIS: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+    };
+
+    return <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${styles[method as keyof typeof styles]}`}>{method === "BCA_VA" ? "BCA Virtual Account" : "QRIS"}</span>;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const isPaymentExpired = (invoice: Invoice) => {
+    if (!invoice.tripay_expired_time) return false;
+    return new Date(invoice.tripay_expired_time) < new Date();
+  };
+
+  const getButtonLabel = (invoice: Invoice) => {
+    if (!invoice.payment_method_selected) {
+      return "Pilih Metode Pembayaran";
+    }
+
+    if (isPaymentExpired(invoice)) {
+      return "Payment Expired - Pilih Lagi";
+    }
+
+    return `Bayar via ${invoice.payment_method_selected === "BCA_VA" ? "BCA VA" : "QRIS"}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading invoices...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Billing</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your platform subscription
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Kelola invoice dan pembayaran Anda</p>
       </div>
-      {/* Current Billing Info */}
-      {currentBilling && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Billing Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Status</span>
-                <Badge
-                  className={
-                    currentBilling.client.status === "trial"
-                      ? "bg-blue-100 text-blue-800"
-                      : currentBilling.client.status === "active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
-                  }
-                >
-                  {currentBilling.client.status}
-                </Badge>
-              </div>
 
-              {currentBilling.client.status === "trial" && (
-                <>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">
-                      Trial Days Remaining
-                    </span>
-                    <span className="font-semibold">
-                      {currentBilling.trial_days_remaining} days
-                    </span>
+      {/* Invoices List */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Invoice History</h2>
+        </div>
+
+        {invoices.length === 0 ? (
+          <div className="p-12 text-center">
+            <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">Belum ada invoice</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {invoices.map((invoice) => (
+              <div key={invoice.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{invoice.invoice_number}</h3>
+                      {getStatusBadge(invoice.status)}
+                      {getPaymentMethodBadge(invoice.payment_method_selected)}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                        <DollarSign className="w-4 h-4" />
+                        <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(invoice.total_amount)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                        <Calendar className="w-4 h-4" />
+                        <span>Due: {formatDate(invoice.due_date)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                        <Clock className="w-4 h-4" />
+                        <span>Created: {formatDate(invoice.created_at)}</span>
+                      </div>
+                    </div>
+
+                    {isPaymentExpired(invoice) && invoice.status === "pending" && (
+                      <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium text-yellow-900 dark:text-yellow-300">Payment Expired</p>
+                          <p className="text-yellow-700 dark:text-yellow-400">Pembayaran sebelumnya telah kadaluarsa. Silakan buat pembayaran baru.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {currentBilling.trial_days_remaining <= 7 && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        Trial akan berakhir dalam{" "}
-                        {currentBilling.trial_days_remaining} hari. Invoice
-                        sudah tersedia untuk pembayaran.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </>
-              )}
-
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">
-                  Total Active Users
-                </span>
-                <span className="font-semibold">
-                  {currentBilling.client.total_users}
-                </span>
+                  <div className="flex items-center gap-2">
+                    {invoice.status === "pending" && (
+                      <button onClick={() => handlePayNow(invoice)} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm whitespace-nowrap">
+                        {getButtonLabel(invoice)}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Monthly Bill</span>
-                <span className="text-xl font-bold">
-                  Rp{" "}
-                  {currentBilling.monthly_bill_estimate.toLocaleString("id-ID")}
-                </span>
-              </div>
+      {/* Payment Method Selection Modal */}
+      <PaymentMethodModal
+        isOpen={showPaymentMethodModal}
+        onClose={() => {
+          setShowPaymentMethodModal(false);
+          setSelectedInvoice(null);
+        }}
+        onSelectMethod={handleSelectPaymentMethod}
+        isLoading={processingPayment}
+      />
 
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Billing Date</span>
-                <span className="font-semibold">
-                  Tanggal {currentBilling.client.billing_date} setiap bulan
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Invoice History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoice History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice Number</TableHead>
-                <TableHead>Period</TableHead>
-                <TableHead>Users</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    No invoices found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">
-                      {invoice.invoice_number}
-                    </TableCell>
-                    <TableCell>
-                      {format(
-                        new Date(invoice.period_year, invoice.period_month - 1),
-                        "MMM yyyy"
-                      )}
-                    </TableCell>
-                    <TableCell>{invoice.total_users}</TableCell>
-                    <TableCell>
-                      Rp {invoice.total_amount.toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                    <TableCell>
-                      {format(new Date(invoice.due_date), "dd MMM yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      {invoice.status === "pending" &&
-                        !invoice.payment_method_selected && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePayNow(invoice)}
-                          >
-                            Pay Now
-                          </Button>
-                        )}
-                      {invoice.status === "pending" &&
-                        invoice.payment_method_selected === "BCA_VA" &&
-                        invoice.checkout_url && (
-                          <Button variant="outline" size="sm" asChild>
-                            <a
-                              href={invoice.checkout_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Pay Now
-                            </a>
-                          </Button>
-                        )}
-                      {invoice.status === "pending" &&
-                        invoice.payment_method_selected === "QRIS" &&
-                        invoice.qr_url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setShowQRIS(true);
-                            }}
-                          >
-                            View QR
-                          </Button>
-                        )}
-                      {invoice.status === "paid" && invoice.paid_at && (
-                        <span className="text-sm text-muted-foreground">
-                          Paid on{" "}
-                          {format(new Date(invoice.paid_at), "dd MMM yyyy")}
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-
-          {totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </Button>
-              <span className="flex items-center px-4">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Payment Method Modal */}
+      {/* BCA VA Modal */}
       {selectedInvoice && (
-        <PaymentMethodModal
-          isOpen={showPaymentMethod}
-          onClose={() => setShowPaymentMethod(false)}
-          onSelect={handlePaymentMethodSelect}
+        <BCAVAModal
+          isOpen={showBCAModal}
+          onClose={() => {
+            setShowBCAModal(false);
+            setSelectedInvoice(null);
+            fetchInvoices();
+          }}
+          vaNumber={selectedInvoice.tripay_va_number || ""}
           amount={selectedInvoice.total_amount}
+          expiredTime={selectedInvoice.tripay_expired_time || ""}
+          paymentUrl={selectedInvoice.tripay_payment_url || ""}
           invoiceNumber={selectedInvoice.invoice_number}
         />
       )}
 
       {/* QRIS Modal */}
-      {selectedInvoice &&
-        selectedInvoice.qr_url &&
-        selectedInvoice.expired_at && (
-          <QRISModal
-            isOpen={showQRIS}
-            onClose={() => setShowQRIS(false)}
-            invoiceId={selectedInvoice.id}
-            invoiceNumber={selectedInvoice.invoice_number}
-            amount={selectedInvoice.total_amount}
-            qrUrl={selectedInvoice.qr_url}
-            expiredAt={selectedInvoice.expired_at}
-          />
-        )}
+      {selectedInvoice && (
+        <QRISModal
+          isOpen={showQRISModal}
+          onClose={() => {
+            setShowQRISModal(false);
+            setSelectedInvoice(null);
+            fetchInvoices();
+          }}
+          qrUrl={selectedInvoice.tripay_qr_url || ""}
+          amount={selectedInvoice.total_amount}
+          expiredTime={selectedInvoice.tripay_expired_time || ""}
+          reference={selectedInvoice.tripay_reference || ""}
+          invoiceNumber={selectedInvoice.invoice_number}
+        />
+      )}
     </div>
   );
 }
