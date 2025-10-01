@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import api from "@/lib/axios";
+import api from "@/lib/api";
 import { Users, Send, DollarSign } from "lucide-react";
 import TrialBanner from "@/components/TrialBanner";
 import toast from "react-hot-toast";

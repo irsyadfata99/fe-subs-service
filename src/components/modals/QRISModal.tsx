@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, RefreshCw, Clock, Download } from "lucide-react";
 import toast from "react-hot-toast";
-import api from "@/lib/axios";
+import api from "@/lib/api";
 
 interface QRISModalProps {
   isOpen: boolean;

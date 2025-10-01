@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/axios";
+import api from "@/lib/api";
 import { Calendar, DollarSign, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import PaymentMethodModal from "@/components/modals/PaymentMethodModal";
