@@ -8,8 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkActionsToolbar } from "@/components/BulkActionsToolbar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 
@@ -75,7 +88,14 @@ export default function EndUsersPage() {
       const response = await api.get("/end-users", params);
 
       setEndUsers(response.data.data?.end_users || []);
-      setPagination(response.data.data?.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 });
+      setPagination(
+        response.data.data?.pagination || {
+          total: 0,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+        }
+      );
     } catch (error: unknown) {
       console.error("Failed to fetch end users:", error);
       setEndUsers([]);
@@ -109,7 +129,11 @@ export default function EndUsersPage() {
   };
 
   const toggleUserSelection = (userId: number) => {
-    setSelectedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
+    setSelectedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
   };
 
   const toggleSelectAll = () => {
@@ -138,6 +162,32 @@ export default function EndUsersPage() {
     }
   };
 
+  // Format WhatsApp number
+  const formatWhatsApp = (phone: string | null) => {
+    if (!phone) return "-";
+
+    const cleaned = phone.replace(/\D/g, "");
+
+    if (cleaned.startsWith("62")) {
+      const countryCode = cleaned.slice(0, 2);
+      const operator = cleaned.slice(2, 5);
+      const part1 = cleaned.slice(5, 9);
+      const part2 = cleaned.slice(9);
+      return `+${countryCode} ${operator}-${part1}-${part2}`;
+    }
+
+    return phone;
+  };
+
+  // ✅ Format currency - sama seperti Monthly Bill
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -148,7 +198,13 @@ export default function EndUsersPage() {
         </Button>
       </div>
 
-      {selectedUsers.length > 0 && <BulkActionsToolbar selectedCount={selectedUsers.length} selectedUserIds={selectedUsers} onActionComplete={handleBulkActionComplete} />}
+      {selectedUsers.length > 0 && (
+        <BulkActionsToolbar
+          selectedCount={selectedUsers.length}
+          selectedUserIds={selectedUsers}
+          onActionComplete={handleBulkActionComplete}
+        />
+      )}
 
       <Card>
         <CardHeader>
@@ -158,7 +214,12 @@ export default function EndUsersPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search users..." value={searchQuery} onChange={(e) => handleSearch(e.target.value)} className="pl-10" />
+              <Input
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
             <Select value={statusFilter} onValueChange={handleStatusFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
@@ -178,19 +239,37 @@ export default function EndUsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
-                    <Checkbox checked={selectedUsers.length === endUsers.length && endUsers.length > 0} onCheckedChange={toggleSelectAll} />
+                    <Checkbox
+                      checked={
+                        selectedUsers.length === endUsers.length &&
+                        endUsers.length > 0
+                      }
+                      onCheckedChange={toggleSelectAll}
+                    />
                   </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("name")}>
-                    Name {sortBy === "name" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead
+                    className="cursor-pointer"
+                    onClick={() => handleSort("name")}
+                  >
+                    Name{" "}
+                    {sortBy === "name" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Platform</TableHead>
                   <TableHead>Price</TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
-                    Status {sortBy === "status" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead
+                    className="cursor-pointer"
+                    onClick={() => handleSort("status")}
+                  >
+                    Status{" "}
+                    {sortBy === "status" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("due_date")}>
-                    Due Date {sortBy === "due_date" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead
+                    className="cursor-pointer"
+                    onClick={() => handleSort("due_date")}
+                  >
+                    Due Date{" "}
+                    {sortBy === "due_date" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -212,18 +291,34 @@ export default function EndUsersPage() {
                   endUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
-                        <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => toggleUserSelection(user.id)} />
+                        <Checkbox
+                          checked={selectedUsers.includes(user.id)}
+                          onCheckedChange={() => toggleUserSelection(user.id)}
+                        />
                       </TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.package_name}</TableCell>
-                      <TableCell>Rp {user.package_price?.toLocaleString("id-ID") || "0"}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(user.status)}>{user.status}</Badge>
+                      <TableCell className="font-mono text-sm">
+                        {formatWhatsApp(user.phone)}
                       </TableCell>
-                      <TableCell>{new Date(user.due_date).toLocaleDateString("id-ID")}</TableCell>
+                      <TableCell>{user.package_name}</TableCell>
+                      {/* ✅ CHANGED: Format currency dengan Intl */}
+                      <TableCell className="font-medium">
+                        {formatCurrency(user.package_price || 0)}
+                      </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => router.push(`/end-users/${user.id}`)}>
+                        <Badge className={getStatusColor(user.status)}>
+                          {user.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(user.due_date).toLocaleDateString("id-ID")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/end-users/${user.id}`)}
+                        >
                           View
                         </Button>
                       </TableCell>
@@ -236,16 +331,32 @@ export default function EndUsersPage() {
 
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Showing {(currentPage - 1) * pagination.limit + 1} to {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
+              Showing {(currentPage - 1) * pagination.limit + 1} to{" "}
+              {Math.min(currentPage * pagination.limit, pagination.total)} of{" "}
+              {pagination.total} results
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm">
                 Page {currentPage} of {pagination.totalPages}
               </span>
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.min(pagination.totalPages, prev + 1))} disabled={currentPage === pagination.totalPages}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setCurrentPage((prev) =>
+                    Math.min(pagination.totalPages, prev + 1)
+                  )
+                }
+                disabled={currentPage === pagination.totalPages}
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

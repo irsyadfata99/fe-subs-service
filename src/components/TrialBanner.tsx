@@ -16,7 +16,13 @@ interface TrialBannerProps {
   isLoadingInvoice?: boolean;
 }
 
-export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, onPayNow, isLoadingInvoice = false }: TrialBannerProps) {
+export default function TrialBanner({
+  trialEndsAt,
+  monthlyBill,
+  pendingInvoice,
+  onPayNow,
+  isLoadingInvoice = false,
+}: TrialBannerProps) {
   const [daysLeft, setDaysLeft] = useState(0);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -46,25 +52,38 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
   };
 
   const billingAmount = pendingInvoice?.total_amount || monthlyBill;
-  const buttonLabel = pendingInvoice?.payment_method_selected ? `Bayar via ${pendingInvoice.payment_method_selected === "BCA_VA" ? "BCA VA" : "QRIS"}` : "Pilih Metode Pembayaran";
+  const buttonLabel = pendingInvoice?.payment_method_selected
+    ? `Bayar via ${
+        pendingInvoice.payment_method_selected === "BCA_VA" ? "BCA VA" : "QRIS"
+      }`
+    : "Pilih Metode Pembayaran";
 
   return (
-    <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-6 relative overflow-hidden">
-      <button onClick={() => setIsDismissed(true)} className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition-colors">
-        <X className="w-5 h-5" />
+    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-4 relative">
+      <button
+        onClick={() => setIsDismissed(true)}
+        className="absolute top-3 right-3 p-1 hover:bg-white/20 rounded-full transition-colors"
+      >
+        <X className="w-4 h-4" />
       </button>
 
-      <div className="flex items-start gap-4">
-        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-6 h-6" />
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <AlertTriangle className="w-5 h-5" />
         </div>
 
         <div className="flex-1">
-          <h3 className="text-xl font-bold mb-2">{daysLeft > 0 ? `Trial berakhir dalam ${daysLeft} hari` : "Trial telah berakhir"}</h3>
-
-          <p className="text-white/90 mb-4">
+          <h3 className="text-lg font-bold mb-1">
             {daysLeft > 0
-              ? `Masa trial Anda akan berakhir pada ${new Date(trialEndsAt).toLocaleDateString("id-ID", {
+              ? `Trial berakhir dalam ${daysLeft} hari`
+              : "Trial telah berakhir"}
+          </h3>
+
+          <p className="text-white/90 text-sm mb-3">
+            {daysLeft > 0
+              ? `Masa trial Anda akan berakhir pada ${new Date(
+                  trialEndsAt
+                ).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "long",
                   year: "numeric",
@@ -72,19 +91,27 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
               : "Silakan lakukan pembayaran untuk mengaktifkan kembali layanan Anda."}
           </p>
 
-          <div className="bg-white/20 rounded-lg p-4 mb-4">
+          <div className="bg-white/15 rounded-md p-3 mb-3 backdrop-blur-sm">
             <div className="flex justify-between items-center">
-              <span className="text-white/90">Tagihan Bulanan:</span>
-              <span className="text-2xl font-bold">{formatCurrency(billingAmount)}</span>
+              <span className="text-white/90 text-sm">Tagihan Bulanan:</span>
+              <span className="text-xl font-bold">
+                {formatCurrency(billingAmount)}
+              </span>
             </div>
             {pendingInvoice && (
-              <div className="mt-2 pt-2 border-t border-white/20">
-                <span className="text-sm text-white/80">Invoice: {pendingInvoice.invoice_number}</span>
+              <div className="mt-1.5 pt-1.5 border-t border-white/20">
+                <span className="text-xs text-white/80">
+                  Invoice: {pendingInvoice.invoice_number}
+                </span>
               </div>
             )}
           </div>
 
-          <button onClick={onPayNow} disabled={isLoadingInvoice} className="w-full sm:w-auto px-6 py-3 bg-white text-orange-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <button
+            onClick={onPayNow}
+            disabled={isLoadingInvoice}
+            className="px-5 py-2 bg-white text-blue-600 font-semibold rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
             {isLoadingInvoice ? "Memuat..." : buttonLabel}
           </button>
         </div>
