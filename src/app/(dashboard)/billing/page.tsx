@@ -75,20 +75,49 @@ export default function BillingPage() {
   }, [fetchCurrentBilling, fetchInvoices]);
 
   const handlePayNow = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowPaymentMethod(true);
+    const isExpired =
+      invoice.expired_at && new Date(invoice.expired_at).getTime() < Date.now();
+
+    // If no payment method OR expired, show modal
+    if (!invoice.payment_method_selected || isExpired) {
+      setSelectedInvoice(invoice);
+      setShowPaymentMethod(true);
+      return;
+    }
+
+    // If has valid payment method and not expired
+    if (invoice.payment_method_selected === "QRIS" && invoice.qr_url) {
+      setSelectedInvoice(invoice);
+      setShowQRIS(true);
+    } else if (invoice.checkout_url) {
+      window.open(invoice.checkout_url, "_blank");
+    }
   };
 
   const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
     if (!selectedInvoice) return;
 
     try {
-      const response = await api.post(
-        `/billing/invoices/${selectedInvoice.id}/pay`,
-        {
-          payment_method: method,
-        }
-      );
+      const isExpired =
+        selectedInvoice.expired_at &&
+        new Date(selectedInvoice.expired_at).getTime() < Date.now();
+
+      let response;
+
+      // If payment method same and expired, regenerate
+      if (selectedInvoice.payment_method_selected === method && isExpired) {
+        response = await api.post(
+          `/billing/invoices/${selectedInvoice.id}/regenerate-payment`
+        );
+      } else {
+        // Create new payment
+        response = await api.post(
+          `/billing/invoices/${selectedInvoice.id}/pay`,
+          {
+            payment_method: method,
+          }
+        );
+      }
 
       const updatedInvoice = response.data.data.invoice;
       setShowPaymentMethod(false);

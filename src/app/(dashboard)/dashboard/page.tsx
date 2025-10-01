@@ -51,20 +51,45 @@ export default function DashboardPage() {
   };
 
   const handlePayNow = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowPaymentModal(true);
+    const isExpired =
+      invoice.expired_at && new Date(invoice.expired_at).getTime() < Date.now();
+
+    if (!invoice.payment_method_selected || isExpired) {
+      setSelectedInvoice(invoice);
+      setShowPaymentModal(true);
+      return;
+    }
+
+    if (invoice.payment_method_selected === "QRIS" && invoice.qr_url) {
+      setSelectedInvoice(invoice);
+      setShowQRIS(true);
+    } else if (invoice.checkout_url) {
+      window.open(invoice.checkout_url, "_blank");
+    }
   };
 
   const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
     if (!selectedInvoice) return;
 
     try {
-      const response = await api.post(
-        `/billing/invoices/${selectedInvoice.id}/pay`,
-        {
-          payment_method: method,
-        }
-      );
+      const isExpired =
+        selectedInvoice.expired_at &&
+        new Date(selectedInvoice.expired_at).getTime() < Date.now();
+
+      let response;
+
+      if (selectedInvoice.payment_method_selected === method && isExpired) {
+        response = await api.post(
+          `/billing/invoices/${selectedInvoice.id}/regenerate-payment`
+        );
+      } else {
+        response = await api.post(
+          `/billing/invoices/${selectedInvoice.id}/pay`,
+          {
+            payment_method: method,
+          }
+        );
+      }
 
       const updatedInvoice = response.data.data.invoice;
       setShowPaymentModal(false);
@@ -73,10 +98,8 @@ export default function DashboardPage() {
       if (method === "QRIS") {
         setSelectedInvoice(updatedInvoice);
         setShowQRIS(true);
-      } else {
-        if (updatedInvoice.checkout_url) {
-          window.open(updatedInvoice.checkout_url, "_blank");
-        }
+      } else if (updatedInvoice.checkout_url) {
+        window.open(updatedInvoice.checkout_url, "_blank");
         toast.success("Redirecting to payment page...");
       }
     } catch (error) {

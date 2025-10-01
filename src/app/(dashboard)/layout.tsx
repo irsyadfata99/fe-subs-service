@@ -58,13 +58,10 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
 
-  // Fetch pending invoice - ALWAYS for trial and suspended
-  // Fetch pending invoice - with auto-generation for trial
   useEffect(() => {
     const fetchPendingInvoice = async () => {
       if (user && (user.status === "trial" || user.status === "suspended")) {
         try {
-          // First, try to get existing invoice
           const response = await api.get("/billing/invoices", {
             params: { status: "pending", limit: 1 },
           });
@@ -73,7 +70,6 @@ export default function DashboardLayout({
           if (invoices.length > 0) {
             setPendingInvoice(invoices[0]);
           } else if (user.status === "trial") {
-            // If no invoice but in trial, check if we need to generate
             const trialDaysRemaining = user.trial_ends_at
               ? Math.max(
                   0,
@@ -84,12 +80,10 @@ export default function DashboardLayout({
                 )
               : 0;
 
-            // Auto-generate invoice if H-7 or less
             if (trialDaysRemaining <= 7) {
               console.log("🔄 Auto-generating trial invoice...");
 
               try {
-                // Call check endpoint to generate invoice
                 const generateResponse = await api.get(
                   "/billing/check-trial-invoice"
                 );
@@ -98,7 +92,6 @@ export default function DashboardLayout({
                   setPendingInvoice(generateResponse.data.data);
                   console.log("✅ Invoice generated successfully");
                 } else {
-                  // Retry fetch after generation
                   setTimeout(async () => {
                     const retryResponse = await api.get("/billing/invoices", {
                       params: { status: "pending", limit: 1 },
@@ -132,38 +125,91 @@ export default function DashboardLayout({
     }
   }, [user]);
 
-  const handlePayNow = () => {
-    if (pendingInvoice) {
-      // If payment method already selected
-      if (
-        pendingInvoice.payment_method_selected === "QRIS" &&
-        pendingInvoice.qr_url
-      ) {
-        setShowQRIS(true);
-      } else if (
-        pendingInvoice.payment_method_selected === "BCA_VA" &&
-        pendingInvoice.checkout_url
-      ) {
-        window.open(pendingInvoice.checkout_url, "_blank");
-      } else {
-        // Show payment method selection
-        setShowPaymentModal(true);
-      }
-    } else {
+  const handlePayNow = async () => {
+    if (!pendingInvoice) {
       toast.error("Invoice belum tersedia. Mohon refresh halaman.");
+      return;
     }
+
+    console.log("🔍 Debug Payment:", {
+      invoice_id: pendingInvoice.id,
+      payment_method: pendingInvoice.payment_method_selected,
+      expired_at: pendingInvoice.expired_at,
+      checkout_url: pendingInvoice.checkout_url,
+      qr_url: pendingInvoice.qr_url,
+    });
+
+    // Check if payment expired or no expired_at (treat as expired)
+    const now = Date.now();
+    const expiredTime = pendingInvoice.expired_at
+      ? new Date(pendingInvoice.expired_at).getTime()
+      : 0;
+    const isExpired = !pendingInvoice.expired_at || expiredTime < now;
+
+    console.log("⏰ Expiry Check:", {
+      expired_at: pendingInvoice.expired_at,
+      expiredTime: new Date(expiredTime).toISOString(),
+      now: new Date(now).toISOString(),
+      isExpired,
+    });
+
+    // Always show modal if no payment method OR expired
+    if (!pendingInvoice.payment_method_selected || isExpired) {
+      console.log("✅ Showing payment modal");
+      setShowPaymentModal(true);
+      return;
+    }
+
+    // If QRIS with valid QR
+    if (
+      pendingInvoice.payment_method_selected === "QRIS" &&
+      pendingInvoice.qr_url
+    ) {
+      console.log("✅ Showing QRIS modal");
+      setShowQRIS(true);
+      return;
+    }
+
+    // If BCA VA with valid checkout URL
+    if (
+      pendingInvoice.payment_method_selected === "BCA_VA" &&
+      pendingInvoice.checkout_url
+    ) {
+      console.log("✅ Opening BCA VA URL");
+      window.open(pendingInvoice.checkout_url, "_blank");
+      return;
+    }
+
+    // Fallback: show modal
+    console.log("⚠️ Fallback: showing modal");
+    setShowPaymentModal(true);
   };
 
   const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
     if (!pendingInvoice) return;
 
     try {
-      const response = await api.post(
-        `/billing/invoices/${pendingInvoice.id}/pay`,
-        {
-          payment_method: method,
-        }
-      );
+      // Check if payment expired
+      const isExpired =
+        pendingInvoice.expired_at &&
+        new Date(pendingInvoice.expired_at).getTime() < Date.now();
+
+      let response;
+
+      // If payment method same and expired, regenerate
+      if (pendingInvoice.payment_method_selected === method && isExpired) {
+        response = await api.post(
+          `/billing/invoices/${pendingInvoice.id}/regenerate-payment`
+        );
+      } else {
+        // Create new payment
+        response = await api.post(
+          `/billing/invoices/${pendingInvoice.id}/pay`,
+          {
+            payment_method: method,
+          }
+        );
+      }
 
       const updatedInvoice = response.data.data.invoice;
       setShowPaymentModal(false);
