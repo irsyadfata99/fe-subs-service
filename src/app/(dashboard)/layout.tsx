@@ -30,6 +30,7 @@ interface PendingInvoice {
   checkout_url?: string;
   total_amount: number;
   due_date: string;
+  payment_method_selected?: "BCA_VA" | "QRIS";
   qr_url?: string;
   expired_at?: string;
 }
@@ -57,17 +58,64 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
 
-  // Fetch pending invoice
+  // Fetch pending invoice - ALWAYS for trial and suspended
+  // Fetch pending invoice - with auto-generation for trial
   useEffect(() => {
     const fetchPendingInvoice = async () => {
-      if (user?.status === "trial" || user?.status === "suspended") {
+      if (user && (user.status === "trial" || user.status === "suspended")) {
         try {
+          // First, try to get existing invoice
           const response = await api.get("/billing/invoices", {
             params: { status: "pending", limit: 1 },
           });
           const invoices = response.data.data.invoices || response.data.data;
+
           if (invoices.length > 0) {
             setPendingInvoice(invoices[0]);
+          } else if (user.status === "trial") {
+            // If no invoice but in trial, check if we need to generate
+            const trialDaysRemaining = user.trial_ends_at
+              ? Math.max(
+                  0,
+                  Math.ceil(
+                    (new Date(user.trial_ends_at).getTime() - Date.now()) /
+                      (1000 * 60 * 60 * 24)
+                  )
+                )
+              : 0;
+
+            // Auto-generate invoice if H-7 or less
+            if (trialDaysRemaining <= 7) {
+              console.log("🔄 Auto-generating trial invoice...");
+
+              try {
+                // Call check endpoint to generate invoice
+                const generateResponse = await api.get(
+                  "/billing/check-trial-invoice"
+                );
+
+                if (generateResponse.data.data) {
+                  setPendingInvoice(generateResponse.data.data);
+                  console.log("✅ Invoice generated successfully");
+                } else {
+                  // Retry fetch after generation
+                  setTimeout(async () => {
+                    const retryResponse = await api.get("/billing/invoices", {
+                      params: { status: "pending", limit: 1 },
+                    });
+                    const retryInvoices =
+                      retryResponse.data.data.invoices ||
+                      retryResponse.data.data;
+                    if (retryInvoices.length > 0) {
+                      setPendingInvoice(retryInvoices[0]);
+                    }
+                  }, 2000);
+                }
+              } catch (genError) {
+                console.error("Failed to generate invoice:", genError);
+                toast.error("Failed to generate invoice. Please refresh.");
+              }
+            }
           }
         } catch (error) {
           console.error("Failed to fetch pending invoice:", error);
@@ -86,9 +134,23 @@ export default function DashboardLayout({
 
   const handlePayNow = () => {
     if (pendingInvoice) {
-      setShowPaymentModal(true);
+      // If payment method already selected
+      if (
+        pendingInvoice.payment_method_selected === "QRIS" &&
+        pendingInvoice.qr_url
+      ) {
+        setShowQRIS(true);
+      } else if (
+        pendingInvoice.payment_method_selected === "BCA_VA" &&
+        pendingInvoice.checkout_url
+      ) {
+        window.open(pendingInvoice.checkout_url, "_blank");
+      } else {
+        // Show payment method selection
+        setShowPaymentModal(true);
+      }
     } else {
-      toast.error("No pending invoice found");
+      toast.error("Invoice belum tersedia. Mohon refresh halaman.");
     }
   };
 
@@ -241,7 +303,9 @@ export default function DashboardLayout({
                 monthlyBill={
                   typeof user.monthly_bill === "number" ? user.monthly_bill : 0
                 }
+                pendingInvoice={pendingInvoice}
                 onPayNow={handlePayNow}
+                isLoadingInvoice={loadingInvoice}
               />
             )}
 

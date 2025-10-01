@@ -132,17 +132,80 @@ export default function BillingPage() {
           </p>
         </div>
       </div>
+      {/* Current Billing Info */}
+      {currentBilling && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Billing Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Status</span>
+                <Badge
+                  className={
+                    currentBilling.client.status === "trial"
+                      ? "bg-blue-100 text-blue-800"
+                      : currentBilling.client.status === "active"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }
+                >
+                  {currentBilling.client.status}
+                </Badge>
+              </div>
 
-      {/* Suspended Alert */}
-      {/* {currentBilling && currentBilling.client.status === "suspended" && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Akun Anda tersuspend. Silakan bayar invoice untuk mengaktifkan
-            kembali.
-          </AlertDescription>
-        </Alert>
-      )} */}
+              {currentBilling.client.status === "trial" && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">
+                      Trial Days Remaining
+                    </span>
+                    <span className="font-semibold">
+                      {currentBilling.trial_days_remaining} days
+                    </span>
+                  </div>
+
+                  {currentBilling.trial_days_remaining <= 7 && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Trial akan berakhir dalam{" "}
+                        {currentBilling.trial_days_remaining} hari. Invoice
+                        sudah tersedia untuk pembayaran.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
+
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">
+                  Total Active Users
+                </span>
+                <span className="font-semibold">
+                  {currentBilling.client.total_users}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Monthly Bill</span>
+                <span className="text-xl font-bold">
+                  Rp{" "}
+                  {currentBilling.monthly_bill_estimate.toLocaleString("id-ID")}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Billing Date</span>
+                <span className="font-semibold">
+                  Tanggal {currentBilling.client.billing_date} setiap bulan
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Invoice History */}
       <Card>
