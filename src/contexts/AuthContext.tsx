@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import api, { suspendedAccountEvent } from "@/lib/api";
@@ -21,7 +21,7 @@ interface SuspendedAccountData {
     tripay_qr_url?: string;
     tripay_payment_url?: string;
     tripay_expired_time?: string;
-    tripay_reference?: string; // ADDED: Missing field
+    tripay_reference?: string;
   };
 }
 
@@ -42,6 +42,7 @@ interface RegisterData {
   email: string;
   password: string;
   phone?: string;
+  contact_whatsapp?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,84 +53,123 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [suspendedData, setSuspendedData] = useState<SuspendedAccountData | null>(null);
   const router = useRouter();
 
-  const fetchSuspendedInvoice = async () => {
-    try {
-      const response = await api.get("/billing/invoices", {
-        params: { status: "pending", limit: 1 },
-      });
-
-      const invoices = response.data.data?.invoices || response.data.data || [];
-
-      if (invoices.length > 0) {
-        const invoice = invoices[0];
-
-        console.log("📋 Fetched Invoice:", invoice);
-
-        setSuspendedData({
-          status: "suspended",
-          reason: user?.status === "trial" ? "trial_expired" : "payment_overdue",
-          invoice: {
-            id: invoice.id,
-            invoice_number: invoice.invoice_number,
-            total_amount: invoice.total_amount,
-            due_date: invoice.due_date,
-            payment_method_selected: invoice.payment_method_selected,
-            tripay_va_number: invoice.tripay_va_number,
-            tripay_qr_url: invoice.tripay_qr_url,
-            tripay_payment_url: invoice.tripay_payment_url,
-            tripay_expired_time: invoice.tripay_expired_time,
-            tripay_reference: invoice.tripay_reference, // ADDED
-          },
+  const fetchSuspendedInvoice = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const response = await api.get("/billing/invoices", {
+          params: { status: "pending", limit: 1 },
+          signal,
         });
 
-        console.log("✅ Set suspended data with amount:", invoice.total_amount);
-      }
-    } catch (error) {
-      console.error("Failed to fetch suspended invoice:", error);
-    }
-  };
+        const invoices = response.data.data?.invoices || response.data.data || [];
 
-  const checkAuth = async () => {
+        if (invoices.length > 0 && !signal?.aborted) {
+          const invoice = invoices[0];
+
+          console.log("📋 Invoice diambil:", invoice);
+
+          // Determine reason based on user status
+          let reason: "trial_expired" | "payment_overdue" | "account_suspended" = "payment_overdue";
+          if (user?.status === "trial") {
+            reason = "trial_expired";
+          } else if (user?.status === "overdue") {
+            reason = "payment_overdue";
+          } else if (user?.status === "suspended") {
+            reason = user.suspension_reason || "account_suspended";
+          }
+
+          setSuspendedData({
+            status: "suspended",
+            reason: reason,
+            invoice: {
+              id: invoice.id,
+              invoice_number: invoice.invoice_number,
+              total_amount: invoice.total_amount,
+              due_date: invoice.due_date,
+              payment_method_selected: invoice.payment_method_selected,
+              tripay_va_number: invoice.tripay_va_number,
+              tripay_qr_url: invoice.tripay_qr_url,
+              tripay_payment_url: invoice.tripay_payment_url,
+              tripay_expired_time: invoice.tripay_expired_time,
+              tripay_reference: invoice.tripay_reference,
+            },
+          });
+
+          console.log("✅ Data suspended dengan amount:", invoice.total_amount);
+        }
+      } catch (error: unknown) {
+        const err = error as { name?: string };
+        if (err.name !== "AbortError") {
+          console.error("Gagal mengambil invoice suspended:", error);
+        }
+      }
+    },
+    [user?.status]
+  );
+
+  const checkAuth = useCallback(async () => {
     const token = Cookies.get("token");
     if (!token) {
       setLoading(false);
       return;
     }
 
+    const abortController = new AbortController();
+
     try {
-      const response = await api.get("/auth/me");
+      const response = await api.get("/auth/me", {
+        signal: abortController.signal,
+      });
       const userData = response.data.data;
       setUser(userData);
 
-      if (userData.status === "suspended") {
-        const reason = userData.suspension_reason || (userData.status === "trial" ? "trial_expired" : "payment_overdue");
-        await fetchSuspendedInvoice();
+      // Fetch invoice for suspended OR overdue users
+      if ((userData.status === "suspended" || userData.status === "overdue") && !abortController.signal.aborted) {
+        await fetchSuspendedInvoice(abortController.signal);
       }
     } catch (error: unknown) {
-      const err = error as { response?: { status?: number } };
-      if (err.response?.status !== 403) {
-        Cookies.remove("token");
+      const err = error as { response?: { status?: number }; name?: string };
+      if (err.name !== "AbortError") {
+        if (err.response?.status !== 403) {
+          Cookies.remove("token");
+        }
       }
     } finally {
-      setLoading(false);
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+
+    return () => abortController.abort();
+  }, [fetchSuspendedInvoice]);
 
   useEffect(() => {
-    checkAuth();
+    let cleanup: (() => void) | undefined;
+
+    const initAuth = async () => {
+      const result = await checkAuth();
+      if (result) {
+        cleanup = result;
+      }
+    };
+
+    initAuth();
 
     const handleSuspended = (event: Event) => {
       const customEvent = event as CustomEvent<SuspendedAccountData>;
-      console.log("Suspended account event received:", customEvent.detail);
+      console.log("Event account suspended diterima:", customEvent.detail);
       setSuspendedData(customEvent.detail);
     };
 
     suspendedAccountEvent.addEventListener("account-suspended", handleSuspended);
 
     return () => {
+      if (cleanup) {
+        cleanup();
+      }
       suspendedAccountEvent.removeEventListener("account-suspended", handleSuspended);
     };
-  }, []);
+  }, [checkAuth]);
 
   const login = async (email: string, password: string) => {
     const response = await api.post("/auth/login", { email, password });
@@ -138,8 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     Cookies.set("token", token, { expires: 7 });
     setUser(client);
 
-    if (client.status === "suspended") {
-      const reason = client.suspension_reason || "trial_expired";
+    // Handle suspended OR overdue status
+    if (client.status === "suspended" || client.status === "overdue") {
+      const reason = client.suspension_reason || (client.status === "overdue" ? "payment_overdue" : "trial_expired");
 
       try {
         const invoiceRes = await api.get("/billing/invoices", {
@@ -163,12 +204,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               tripay_qr_url: invoice.tripay_qr_url,
               tripay_payment_url: invoice.tripay_payment_url,
               tripay_expired_time: invoice.tripay_expired_time,
-              tripay_reference: invoice.tripay_reference, // ADDED
+              tripay_reference: invoice.tripay_reference,
             },
           });
         }
       } catch (error) {
-        console.error("Failed to fetch invoice:", error);
+        console.error("Gagal mengambil invoice:", error);
       }
 
       router.push("/dashboard");
@@ -197,11 +238,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSuspendedData(null);
   };
 
-  const refreshSuspendedData = async () => {
-    if (user?.status === "suspended") {
+  const refreshSuspendedData = useCallback(async () => {
+    // Refresh for both suspended AND overdue users
+    if (user?.status === "suspended" || user?.status === "overdue") {
       await fetchSuspendedInvoice();
     }
-  };
+  }, [user?.status, fetchSuspendedInvoice]);
 
   return (
     <AuthContext.Provider
@@ -224,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error("useAuth harus digunakan dalam AuthProvider");
   }
   return context;
 };

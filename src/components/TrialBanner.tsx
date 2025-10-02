@@ -56,12 +56,11 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
     };
 
     calculateDaysLeft();
-    const interval = setInterval(calculateDaysLeft, 1000 * 60 * 60); // Update every hour
+    const interval = setInterval(calculateDaysLeft, 1000 * 60 * 60);
 
     return () => clearInterval(interval);
   }, [trialEndsAt]);
 
-  // Update payment data when pendingInvoice changes
   useEffect(() => {
     if (pendingInvoice) {
       setPaymentMethod(pendingInvoice.payment_method_selected);
@@ -82,35 +81,35 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
       style: "currency",
       currency: "IDR",
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const billingAmount = pendingInvoice?.total_amount || monthlyBill;
 
   const handlePayNow = () => {
-    // Check if payment exists and not expired
     const isExpired = paymentData?.tripay_expired_time && new Date(paymentData.tripay_expired_time).getTime() < Date.now();
 
     if (!pendingInvoice || !paymentMethod || isExpired) {
+      if (isExpired) {
+        toast.error("Pembayaran telah kadaluarsa. Silakan buat pembayaran baru.");
+      }
       setShowPaymentSelector(true);
       setShowPaymentModal(true);
       return;
     }
 
-    // If QRIS with valid QR
     if (paymentMethod === "QRIS" && paymentData?.tripay_qr_url) {
       setShowPaymentSelector(false);
       setShowPaymentModal(true);
       return;
     }
 
-    // If BCA VA with valid checkout URL
     if (paymentMethod === "BCA_VA" && paymentData?.tripay_payment_url) {
       window.open(paymentData.tripay_payment_url, "_blank");
       return;
     }
 
-    // Fallback: show modal
     setShowPaymentSelector(true);
     setShowPaymentModal(true);
   };
@@ -119,8 +118,6 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
     setPaymentMethod(method);
     setPaymentData(data);
     setShowPaymentSelector(false);
-
-    // Refresh page to update invoice data
     window.location.reload();
   };
 
@@ -134,7 +131,7 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
       setShowPaymentSelector(true);
       toast.success("Pembayaran dibatalkan. Silakan pilih metode lain.");
     } catch (error) {
-      console.error("Failed to cancel payment:", error);
+      console.error("Gagal membatalkan pembayaran:", error);
       toast.error("Gagal membatalkan pembayaran");
     }
   };
@@ -185,7 +182,6 @@ export default function TrialBanner({ trialEndsAt, monthlyBill, pendingInvoice, 
         </div>
       </div>
 
-      {/* Payment Modal */}
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

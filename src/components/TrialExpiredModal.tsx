@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,29 +23,55 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const pollAttemptsRef = useRef(0);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const invoice = suspendedData?.invoice;
 
   // Polling mechanism untuk invoice yang belum ter-generate
   useEffect(() => {
-    if (!isOpen || !invoice || invoice.total_amount > 0) {
+    const isInvoiceReady = invoice && invoice.total_amount > 0;
+
+    if (!isOpen || isInvoiceReady) {
       setIsPolling(false);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
       return;
     }
 
     console.log("🔄 Invoice belum ready, starting polling...");
     setIsPolling(true);
+    pollAttemptsRef.current = 0;
 
-    const pollInterval = setInterval(async () => {
-      console.log("🔄 Polling for invoice update...");
+    const MAX_ATTEMPTS = 12; // 12 * 5s = 60s max polling
+
+    pollIntervalRef.current = setInterval(async () => {
+      pollAttemptsRef.current++;
+      console.log(`🔄 Polling attempt ${pollAttemptsRef.current}/${MAX_ATTEMPTS}`);
+
+      if (pollAttemptsRef.current >= MAX_ATTEMPTS) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setIsPolling(false);
+        toast.error("Pembuatan invoice timeout. Silakan refresh halaman atau hubungi support.");
+        return;
+      }
+
       await refreshSuspendedData();
     }, 5000);
 
     return () => {
-      clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
       setIsPolling(false);
     };
-  }, [isOpen, invoice, refreshSuspendedData]);
+  }, [isOpen, invoice?.id, invoice?.total_amount, refreshSuspendedData]);
 
   // Load existing payment data
   useEffect(() => {
@@ -56,7 +82,7 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
         tripay_va_number: invoice.tripay_va_number,
         tripay_qr_url: invoice.tripay_qr_url,
         tripay_expired_time: invoice.tripay_expired_time,
-        tripay_reference: (invoice as any).tripay_reference, // Type assertion for optional field
+        tripay_reference: invoice.tripay_reference,
       });
       setShowPaymentSelector(false);
     } else {
@@ -82,7 +108,7 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
       await refreshSuspendedData();
       toast.success("Pembayaran dibatalkan. Silakan pilih metode lain.");
     } catch (error) {
-      console.error("Failed to cancel payment:", error);
+      console.error("Gagal membatalkan pembayaran:", error);
       toast.error("Gagal membatalkan pembayaran");
     }
   };
@@ -93,7 +119,8 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
     if (onClose) onClose();
   };
 
-  const safeAmount = typeof invoice?.total_amount === "number" ? invoice.total_amount : 0;
+  const safeAmount = invoice?.total_amount || 0;
+  const isInvoiceReady = invoice && safeAmount > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
@@ -116,7 +143,7 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
             <AlertDescription>Semua fitur dinonaktifkan hingga pembayaran selesai.</AlertDescription>
           </Alert>
 
-          {invoice && safeAmount > 0 ? (
+          {isInvoiceReady ? (
             <>
               {/* Invoice Details */}
               <InvoiceCard invoiceNumber={invoice.invoice_number} totalAmount={safeAmount} dueDate={invoice.due_date} />
@@ -147,7 +174,7 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
                 {isPolling ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Invoice sedang diproses, mohon tunggu...
+                    Invoice sedang diproses, mohon tunggu... ({pollAttemptsRef.current}/12)
                   </div>
                 ) : (
                   "Invoice sedang dibuat. Silakan refresh halaman dalam beberapa saat."

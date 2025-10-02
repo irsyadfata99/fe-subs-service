@@ -39,7 +39,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
-  // FIXED: Fetch pending invoice for trial users
   useEffect(() => {
     const userId = user?.id;
     const userStatus = user?.status;
@@ -61,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             setPendingInvoice(invoices[0]);
           }
         } catch (error) {
-          console.error("Failed to fetch pending invoice:", error);
+          console.error("Gagal mengambil invoice:", error);
         } finally {
           setLoadingInvoice(false);
         }
@@ -76,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading || loadingInvoice) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <p>Memuat...</p>
       </div>
     );
   }
@@ -85,11 +84,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "End Users", href: "/end-users", icon: Users },
-    { name: "Reminders", href: "/reminders", icon: Bell },
-    ...(user.role === "client" ? [{ name: "Billing", href: "/billing", icon: CreditCard }] : []),
-    { name: "Settings", href: "/settings", icon: Settings },
-    ...(user.role === "super_admin" ? [{ name: "Admin Panel", href: "/admin", icon: Shield }] : []),
+    { name: "Pengguna Akhir", href: "/end-users", icon: Users },
+    { name: "Pengingat", href: "/reminders", icon: Bell },
+    ...(user.role === "client" ? [{ name: "Tagihan", href: "/billing", icon: CreditCard }] : []),
+    { name: "Pengaturan", href: "/settings", icon: Settings },
+    ...(user.role === "super_admin" ? [{ name: "Panel Admin", href: "/admin", icon: Shield }] : []),
   ];
 
   const trialDaysRemaining = user.trial_ends_at ? Math.max(0, Math.ceil((new Date(user.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
@@ -97,8 +96,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        {/* Payment Required Modal - ONLY show when user.status === "suspended" */}
-        {user.status === "suspended" && <PaymentRequiredModal isOpen={true} />}
+        {/* Payment Required Modal - Show for suspended OR overdue */}
+        {(user.status === "suspended" || user.status === "overdue") && (
+          <ErrorBoundary fallback={<div className="p-4 text-center text-red-600">Terjadi kesalahan pada modal pembayaran. Silakan refresh halaman.</div>}>
+            <PaymentRequiredModal isOpen={true} />
+          </ErrorBoundary>
+        )}
 
         {/* Sidebar Overlay */}
         {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -106,7 +109,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Sidebar */}
         <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
           <div className="p-6">
-            <h1 className="text-xl font-bold">Payment Reminder</h1>
+            <h1 className="text-xl font-bold">Pengingat Pembayaran</h1>
             <p className="text-sm text-muted-foreground mt-1">{user.business_name}</p>
           </div>
 
@@ -122,7 +125,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
             <Button variant="ghost" className="w-full justify-start" onClick={logout}>
               <LogOut className="w-5 h-5 mr-3" />
-              Logout
+              Keluar
             </Button>
           </div>
         </aside>
@@ -141,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {user.status === "trial" && (
                   <div className="text-sm hidden sm:block">
                     <span className="text-muted-foreground">Trial: </span>
-                    <span className="font-medium text-primary">{trialDaysRemaining} days left</span>
+                    <span className="font-medium text-primary">{trialDaysRemaining} hari tersisa</span>
                   </div>
                 )}
               </div>
