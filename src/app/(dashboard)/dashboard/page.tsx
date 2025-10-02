@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
 import { Users, Send, DollarSign } from "lucide-react";
 import { toast } from "react-hot-toast";
+import ActiveBillingCard from "@/components/ActiveBillingCard";
 
 interface DashboardStats {
   totalUsers: number;
@@ -19,6 +20,7 @@ interface User {
   status: string;
   trial_ends_at: string;
   monthly_bill: number;
+  billing_date?: number;
 }
 
 interface PendingInvoice {
@@ -42,43 +44,72 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      const [statsRes, userRes, endUsersRes] = await Promise.all([api.get("/dashboard/stats"), api.get("/auth/me"), api.get("/end-users", { params: { limit: 1000 } })]);
-
-      const statsData = statsRes.data.data || statsRes.data;
+      // 1. Fetch user data (PASTI ADA)
+      const userRes = await api.get("/auth/me");
       const userData = userRes.data.data || userRes.data;
+      setUser(userData);
+
+      // 2. Fetch end users untuk hitung stats manual
+      const endUsersRes = await api.get("/end-users", { params: { limit: 1000 } });
       const endUsersData = endUsersRes.data.data?.end_users || endUsersRes.data.data || [];
 
       const totalUsers = endUsersData.length;
       const activeUsers = endUsersData.filter((u: { status: string }) => u.status === "active").length;
 
-      const finalStats = {
-        totalUsers: statsData.totalUsers || totalUsers,
-        activeUsers: statsData.activeUsers || activeUsers,
-        remindersSentThisMonth: statsData.remindersSentThisMonth || 0,
-      };
+      // 3. Try fetch reminders stats (optional)
+      let remindersSentThisMonth = 0;
+      try {
+        const remindersRes = await api.get("/reminders", {
+          params: {
+            status: "sent",
+            limit: 1000,
+          },
+        });
+        const remindersData = remindersRes.data.data?.reminders || remindersRes.data.data || [];
 
-      setStats(finalStats);
-      setUser(userData);
+        // Filter reminders bulan ini
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
 
-      if (userData.status === "trial") {
+        remindersSentThisMonth = remindersData.filter((r: { sent_at: string }) => {
+          const sentDate = new Date(r.sent_at);
+          return sentDate.getMonth() === thisMonth && sentDate.getFullYear() === thisYear;
+        }).length;
+      } catch {
+        console.log("Could not fetch reminders, using default 0");
+      }
+
+      // Set stats
+      setStats({
+        totalUsers,
+        activeUsers,
+        remindersSentThisMonth,
+      });
+
+      // 4. Fetch pending invoice jika user active atau overdue
+      if (userData.status === "active" || userData.status === "overdue") {
         await checkPendingInvoice();
       }
-    } catch (error: any) {
-      if (error.response?.status !== 403) {
-        console.error("Gagal memuat dashboard:", error);
-        const message = error.response?.data?.message || "Gagal memuat dashboard";
+    } catch (error) {
+      console.error("Failed to load dashboard:", error);
+
+      // Jangan show error jika 403 (suspended)
+      const err = error as { response?: { status?: number; data?: { message?: string } } };
+      if (err.response?.status !== 403) {
+        const message = err.response?.data?.message || "Failed to load dashboard";
         toast.error(message);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const checkPendingInvoice = async () => {
     try {
@@ -92,7 +123,7 @@ export default function DashboardPage() {
         setPendingInvoice(invoices[0]);
       }
     } catch (error) {
-      console.error("Gagal memeriksa invoice:", error);
+      console.error("Failed to check invoice:", error);
     }
   };
 
@@ -115,6 +146,30 @@ export default function DashboardPage() {
     return statusMap[status] || status;
   };
 
+  // Calculate next billing date for active users
+  const getNextBillingDate = () => {
+    if (!user?.billing_date) {
+      // Default 30 hari dari sekarang jika tidak ada billing_date
+      return new Date(new Date().setDate(new Date().getDate() + 30)).toISOString();
+    }
+
+    const now = new Date();
+    const currentDay = now.getDate();
+    const billingDay = user.billing_date;
+
+    let nextBilling: Date;
+
+    if (currentDay < billingDay) {
+      // Billing date belum lewat bulan ini
+      nextBilling = new Date(now.getFullYear(), now.getMonth(), billingDay);
+    } else {
+      // Billing date sudah lewat, ambil bulan depan
+      nextBilling = new Date(now.getFullYear(), now.getMonth() + 1, billingDay);
+    }
+
+    return nextBilling.toISOString();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -128,6 +183,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Billing Info - Show at top when active user */}
+      {user?.status === "active" && <ActiveBillingCard nextBillingDate={getNextBillingDate()} monthlyBill={user.monthly_bill || 0} pendingInvoice={pendingInvoice} onPayNow={() => {}} isLoadingInvoice={false} />}
+
       {/* Welcome Section */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Selamat datang kembali, {user?.business_name || "Pengguna"}!</h1>
