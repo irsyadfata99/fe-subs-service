@@ -26,6 +26,7 @@ interface PendingInvoice {
   id: number;
   invoice_number: string;
   total_amount: number;
+  due_date: string;
   payment_method_selected: "BCA_VA" | "QRIS" | null;
   tripay_reference?: string;
   tripay_payment_url?: string;
@@ -42,8 +43,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
 
-  // Show modal if account is suspended
-  const showSuspendedModal = authUser?.status === "suspended" || suspendedData !== null;
+  // FIXED: Show modal ONLY if user status is suspended
+  // Don't show if suspendedData exists but user is not actually suspended
+  const showSuspendedModal = authUser?.status === "suspended";
 
   useEffect(() => {
     fetchDashboardData();
@@ -80,7 +82,7 @@ export default function DashboardPage() {
       setUser(userData);
 
       // Fetch pending invoice if trial user
-      if (userData.status === "trial" || userData.status === "suspended") {
+      if (userData.status === "trial") {
         await checkPendingInvoice();
       }
     } catch (error: any) {
@@ -125,8 +127,8 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* Suspended Account Modal */}
-      <PaymentRequiredModal isOpen={true} />
+      {/* FIXED: Suspended Account Modal - Only show when suspended */}
+      {showSuspendedModal && <PaymentRequiredModal isOpen={showSuspendedModal} />}
 
       <div className="space-y-6">
         {/* Welcome Section */}

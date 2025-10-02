@@ -8,25 +8,22 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import TrialBanner from "@/components/TrialBanner";
-import { PaymentRequiredModal } from "@/components/TrialExpiredModal"; // FIXED: Import nama baru
-import PaymentMethodModal from "@/components/modals/PaymentMethodModal";
-import QRISModal from "@/components/modals/QRISModal";
+import { PaymentRequiredModal } from "@/components/TrialExpiredModal";
 import { Shield } from "lucide-react";
 import api from "@/lib/api";
 import { LayoutDashboard, Users, Bell, CreditCard, Settings, LogOut, Menu } from "lucide-react";
-import { toast } from "sonner";
 
 interface PendingInvoice {
   id: number;
   invoice_number: string;
   total_amount: number;
+  due_date: string;
   payment_method_selected: "BCA_VA" | "QRIS" | null;
   tripay_reference?: string;
   tripay_payment_url?: string;
   tripay_qr_url?: string;
   tripay_va_number?: string;
   tripay_expired_time?: string;
-  due_date?: string;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -36,17 +33,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(true);
 
-  // Payment modals
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showQRIS, setShowQRIS] = useState(false);
-
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
 
-  // FIXED: Destructure only needed values to prevent dependency issues
+  // FIXED: Fetch pending invoice for trial users
   useEffect(() => {
     const userId = user?.id;
     const userStatus = user?.status;
@@ -57,7 +50,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     const fetchPendingInvoice = async () => {
-      if (userStatus === "trial" || userStatus === "suspended") {
+      if (userStatus === "trial") {
         try {
           const response = await api.get("/billing/invoices", {
             params: { status: "pending", limit: 1 },
@@ -78,93 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
 
     fetchPendingInvoice();
-  }, [user?.id, user?.status]); // FIXED: Safe dependency array with primitive values
-
-  const handlePayNow = async () => {
-    if (!pendingInvoice) {
-      toast.error("Invoice tidak ditemukan");
-      return;
-    }
-
-    console.log("🔍 Debug Payment:", {
-      invoice_id: pendingInvoice.id,
-      payment_method: pendingInvoice.payment_method_selected,
-      expired_at: pendingInvoice.tripay_expired_time,
-      checkout_url: pendingInvoice.tripay_payment_url,
-      qr_url: pendingInvoice.tripay_qr_url,
-    });
-
-    // Check if payment expired
-    const now = Date.now();
-    const expiredTime = pendingInvoice.tripay_expired_time ? new Date(pendingInvoice.tripay_expired_time).getTime() : 0;
-    const isExpired = !pendingInvoice.tripay_expired_time || expiredTime < now;
-
-    console.log("⏰ Expiry Check:", {
-      expired_at: pendingInvoice.tripay_expired_time,
-      expiredTime: new Date(expiredTime).toISOString(),
-      now: new Date(now).toISOString(),
-      isExpired,
-    });
-
-    // Always show modal if no payment method OR expired
-    if (!pendingInvoice.payment_method_selected || isExpired) {
-      console.log("✅ Showing payment modal");
-      setShowPaymentModal(true);
-      return;
-    }
-
-    // If QRIS with valid QR
-    if (pendingInvoice.payment_method_selected === "QRIS" && pendingInvoice.tripay_qr_url) {
-      console.log("✅ Showing QRIS modal");
-      setShowQRIS(true);
-      return;
-    }
-
-    // If BCA VA with valid checkout URL
-    if (pendingInvoice.payment_method_selected === "BCA_VA" && pendingInvoice.tripay_payment_url) {
-      console.log("✅ Opening BCA VA URL");
-      window.open(pendingInvoice.tripay_payment_url, "_blank");
-      return;
-    }
-
-    // Fallback: show modal
-    console.log("⚠️ Fallback: showing modal");
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentMethodSelect = async (method: "BCA_VA" | "QRIS") => {
-    if (!pendingInvoice) return;
-
-    try {
-      // Check if payment expired
-      const isExpired = pendingInvoice.tripay_expired_time && new Date(pendingInvoice.tripay_expired_time).getTime() < Date.now();
-
-      let response;
-
-      // If payment method same and expired, regenerate
-      if (pendingInvoice.payment_method_selected === method && isExpired) {
-        response = await api.post(`/billing/invoices/${pendingInvoice.id}/regenerate-payment`);
-      } else {
-        // Create new payment
-        response = await api.post(`/billing/invoices/${pendingInvoice.id}/create-payment`, {
-          payment_method: method,
-        });
-      }
-
-      const updatedInvoice = response.data.data.invoice;
-      setShowPaymentModal(false);
-      setPendingInvoice(updatedInvoice);
-
-      if (method === "QRIS") {
-        setShowQRIS(true);
-      } else if (updatedInvoice.tripay_payment_url) {
-        window.open(updatedInvoice.tripay_payment_url, "_blank");
-        toast.success("Redirecting to payment page...");
-      }
-    } catch {
-      toast.error("Failed to create payment");
-    }
-  };
+  }, [user?.id, user?.status]);
 
   if (loading || loadingInvoice) {
     return (
@@ -190,7 +97,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        {/* Payment Required Modal - untuk trial expired & payment overdue */}
+        {/* Payment Required Modal - ONLY show when user.status === "suspended" */}
         {user.status === "suspended" && <PaymentRequiredModal isOpen={true} />}
 
         {/* Sidebar Overlay */}
@@ -243,32 +150,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Main Content */}
           <main className="p-6">
-            {/* FIXED: Add null check for trial_ends_at */}
+            {/* Trial Banner - Only show for trial users with valid trial_ends_at */}
             {user.status === "trial" && user.trial_ends_at && (
               <div className="mb-6">
-                <TrialBanner trialEndsAt={user.trial_ends_at} monthlyBill={typeof user.monthly_bill === "number" ? user.monthly_bill : 0} pendingInvoice={pendingInvoice} onPayNow={handlePayNow} isLoadingInvoice={loadingInvoice} />
+                <TrialBanner trialEndsAt={user.trial_ends_at} monthlyBill={typeof user.monthly_bill === "number" ? user.monthly_bill : 0} pendingInvoice={pendingInvoice} onPayNow={() => {}} isLoadingInvoice={loadingInvoice} />
               </div>
             )}
 
             {children}
           </main>
         </div>
-
-        {/* Payment Method Modal */}
-        <PaymentMethodModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} onSelectMethod={handlePaymentMethodSelect} isLoading={false} />
-
-        {/* QRIS Modal */}
-        {pendingInvoice && pendingInvoice.tripay_qr_url && pendingInvoice.tripay_expired_time && (
-          <QRISModal
-            isOpen={showQRIS}
-            onClose={() => setShowQRIS(false)}
-            qrUrl={pendingInvoice.tripay_qr_url}
-            amount={pendingInvoice.total_amount}
-            expiredTime={pendingInvoice.tripay_expired_time}
-            reference={pendingInvoice.tripay_reference || ""}
-            invoiceNumber={pendingInvoice.invoice_number}
-          />
-        )}
       </div>
     </ErrorBoundary>
   );

@@ -21,6 +21,7 @@ interface SuspendedAccountData {
     tripay_qr_url?: string;
     tripay_payment_url?: string;
     tripay_expired_time?: string;
+    tripay_reference?: string; // ADDED: Missing field
   };
 }
 
@@ -32,7 +33,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   clearSuspendedData: () => void;
-  refreshSuspendedData: () => Promise<void>; // NEW: Manual refresh function
+  refreshSuspendedData: () => Promise<void>;
 }
 
 interface RegisterData {
@@ -77,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             tripay_qr_url: invoice.tripay_qr_url,
             tripay_payment_url: invoice.tripay_payment_url,
             tripay_expired_time: invoice.tripay_expired_time,
+            tripay_reference: invoice.tripay_reference, // ADDED
           },
         });
 
@@ -99,10 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.data;
       setUser(userData);
 
-      // NEW: Check suspension_reason from backend
       if (userData.status === "suspended") {
         const reason = userData.suspension_reason || (userData.status === "trial" ? "trial_expired" : "payment_overdue");
-
         await fetchSuspendedInvoice();
       }
     } catch (error: unknown) {
@@ -139,7 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(client);
 
     if (client.status === "suspended") {
-      // NEW: Use suspension_reason from backend
       const reason = client.suspension_reason || "trial_expired";
 
       try {
@@ -164,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               tripay_qr_url: invoice.tripay_qr_url,
               tripay_payment_url: invoice.tripay_payment_url,
               tripay_expired_time: invoice.tripay_expired_time,
+              tripay_reference: invoice.tripay_reference, // ADDED
             },
           });
         }
@@ -197,7 +197,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSuspendedData(null);
   };
 
-  // NEW: Manual refresh function
   const refreshSuspendedData = async () => {
     if (user?.status === "suspended") {
       await fetchSuspendedInvoice();
@@ -214,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         clearSuspendedData,
-        refreshSuspendedData, // NEW
+        refreshSuspendedData,
       }}
     >
       {children}
