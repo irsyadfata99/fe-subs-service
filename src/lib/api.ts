@@ -28,6 +28,9 @@ const isRetryableError = (error: AxiosError): boolean => {
   return status === 408 || status === 429 || status >= 500; // Timeout, Rate limit, Server errors
 };
 
+// Global event emitter for 403 suspended account
+export const suspendedAccountEvent = new EventTarget();
+
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
@@ -38,7 +41,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("❌ Request error:", error);
+    console.error("Request error:", error);
     return Promise.reject(error);
   }
 );
@@ -50,7 +53,7 @@ api.interceptors.response.use(
     const config = error.config as AxiosRequestConfig & { _retry?: number };
 
     // Log error for debugging
-    console.error("❌ API Error:", {
+    console.error("API Error:", {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
@@ -70,13 +73,32 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // NEW: Handle 403 Suspended Account
+    if (error.response?.status === 403) {
+      const responseData = error.response.data as any;
+
+      // Check if it's a suspended account error
+      if (responseData?.error === "Account suspended") {
+        console.log("Account suspended detected, triggering modal...");
+
+        // Emit event to trigger modal
+        const event = new CustomEvent("account-suspended", {
+          detail: responseData.data,
+        });
+        suspendedAccountEvent.dispatchEvent(event);
+
+        // Don't redirect, let modal handle it
+        return Promise.reject(error);
+      }
+    }
+
     // Retry logic for retryable errors
     if (isRetryableError(error) && config) {
       config._retry = config._retry || 0;
 
       if (config._retry < MAX_RETRIES) {
         config._retry += 1;
-        console.log(`🔄 Retrying request... (${config._retry}/${MAX_RETRIES})`);
+        console.log(`Retrying request... (${config._retry}/${MAX_RETRIES})`);
 
         await delay(RETRY_DELAY * config._retry);
         return api(config);
@@ -91,12 +113,12 @@ api.interceptors.response.use(
 export const getErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      return "Network error. Please check your connection.";
+      return "Terjadi kesalahan jaringan. Periksa koneksi Anda.";
     }
 
     const data = error.response.data as { error?: string; message?: string };
     return (
-      data?.error || data?.message || "An error occurred. Please try again."
+      data?.error || data?.message || "Terjadi kesalahan. Silakan coba lagi."
     );
   }
 
@@ -104,7 +126,7 @@ export const getErrorMessage = (error: unknown): string => {
     return error.message;
   }
 
-  return "An unexpected error occurred.";
+  return "Terjadi kesalahan yang tidak terduga.";
 };
 
 export default api;
