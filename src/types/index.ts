@@ -4,15 +4,18 @@ export interface Client {
   business_type: string;
   email: string;
   phone?: string;
-  contact_whatsapp?: string; // ← NEW
+  contact_whatsapp?: string;
   logo_url?: string;
-  status: "trial" | "active" | "suspended";
-  role: "client" | "admin" | "super_admin"; // ← ADD THIS
-  trial_ends_at: string;
+  status: "trial" | "active" | "suspended" | "overdue";
+  role: "client" | "admin" | "super_admin";
+  trial_ends_at?: string;
   total_users: number;
   monthly_bill: number;
-  last_active_at: string; // ← ADD THIS
+  billing_date: number;
+  last_active_at?: string;
   created_at: string;
+  updated_at: string;
+  suspension_reason?: "trial_expired" | "payment_overdue" | "account_suspended";
 }
 
 export interface EndUser {
@@ -37,7 +40,7 @@ export interface Reminder {
   message: string;
   type: "before_3days" | "before_1day" | "overdue";
   status: "sent" | "failed";
-  response?: Record<string, unknown>; // Changed from any
+  response?: Record<string, unknown>;
   sent_at: string;
   end_user?: {
     name: string;
@@ -56,16 +59,18 @@ export interface Invoice {
   total_amount: number;
   due_date: string;
   status: "pending" | "paid" | "overdue" | "expired" | "cancelled";
-  payment_method_selected?: "BCA_VA" | "QRIS"; // ← ADD THIS
-  checkout_url?: string;
-  qr_url?: string; // ← ADD THIS
-  qr_string?: string; // ← ADD THIS
+  payment_method_selected?: "BCA_VA" | "QRIS" | null;
+  tripay_reference?: string;
+  tripay_merchant_ref?: string;
+  tripay_payment_url?: string;
+  tripay_va_number?: string;
+  tripay_qr_url?: string;
+  tripay_qr_string?: string;
+  tripay_expired_time?: string;
   paid_at?: string;
-  expired_at?: string; // ← ADD THIS
   created_at: string;
 }
 
-// NEW TYPES
 export interface AdminStats {
   clients: {
     total: number;
@@ -139,7 +144,6 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-// Fixed: Simplified structure
 export interface PaginatedResponse<T> {
   success: boolean;
   data: T[];
@@ -151,7 +155,6 @@ export interface PaginatedResponse<T> {
   };
 }
 
-// Or if backend returns different structure:
 export interface BackendPaginatedResponse<T> {
   success: boolean;
   data: {

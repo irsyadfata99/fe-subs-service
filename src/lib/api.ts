@@ -2,9 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const BASE_URL = API_BASE_URL.endsWith("/api")
-  ? API_BASE_URL
-  : `${API_BASE_URL}/api`;
+const BASE_URL = API_BASE_URL.endsWith("/api") ? API_BASE_URL : `${API_BASE_URL}/api`;
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -63,11 +61,7 @@ api.interceptors.response.use(
     // Handle 401 Unauthorized
     if (error.response?.status === 401) {
       Cookies.remove("token");
-      if (
-        typeof window !== "undefined" &&
-        !window.location.pathname.includes("/login") &&
-        !window.location.pathname.includes("/register")
-      ) {
+      if (typeof window !== "undefined" && !window.location.pathname.includes("/login") && !window.location.pathname.includes("/register")) {
         window.location.href = "/login";
       }
       return Promise.reject(error);
@@ -81,9 +75,27 @@ api.interceptors.response.use(
       if (responseData?.error === "Account suspended") {
         console.log("Account suspended detected, triggering modal...");
 
+        // ✅ FIX: Map backend response to frontend format
+        const suspendedData = {
+          ...responseData.data,
+          invoice: responseData.data.invoice
+            ? {
+                id: responseData.data.invoice.id,
+                invoice_number: responseData.data.invoice.invoice_number,
+                total_amount: responseData.data.invoice.total_amount, // ✅ Pastikan field ini
+                due_date: responseData.data.invoice.due_date,
+                payment_method_selected: responseData.data.invoice.payment_method_selected,
+                tripay_va_number: responseData.data.invoice.tripay_va_number,
+                tripay_qr_url: responseData.data.invoice.tripay_qr_url,
+                tripay_payment_url: responseData.data.invoice.tripay_payment_url,
+                tripay_expired_time: responseData.data.invoice.tripay_expired_time,
+              }
+            : null,
+        };
+
         // Emit event to trigger modal
         const event = new CustomEvent("account-suspended", {
-          detail: responseData.data,
+          detail: suspendedData,
         });
         suspendedAccountEvent.dispatchEvent(event);
 
@@ -117,9 +129,7 @@ export const getErrorMessage = (error: unknown): string => {
     }
 
     const data = error.response.data as { error?: string; message?: string };
-    return (
-      data?.error || data?.message || "Terjadi kesalahan. Silakan coba lagi."
-    );
+    return data?.error || data?.message || "Terjadi kesalahan. Silakan coba lagi.";
   }
 
   if (error instanceof Error) {

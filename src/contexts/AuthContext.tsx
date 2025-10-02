@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import api, { suspendedAccountEvent } from "@/lib/api";
@@ -15,11 +9,11 @@ import { Client } from "@/types";
 interface SuspendedAccountData {
   status: "suspended";
   reason: "trial_expired" | "payment_overdue" | "account_suspended";
-  details?: any;
+  details?: Record<string, unknown>;
   invoice?: {
     id: number;
     invoice_number: string;
-    amount: number;
+    total_amount: number;
     due_date: string;
     payment_url?: string;
     payment_method_selected?: "BCA_VA" | "QRIS" | null;
@@ -38,6 +32,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   clearSuspendedData: () => void;
+  refreshSuspendedData: () => Promise<void>; // NEW: Manual refresh function
 }
 
 interface RegisterData {
@@ -53,32 +48,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
-  const [suspendedData, setSuspendedData] =
-    useState<SuspendedAccountData | null>(null);
+  const [suspendedData, setSuspendedData] = useState<SuspendedAccountData | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    checkAuth();
+  const fetchSuspendedInvoice = async () => {
+    try {
+      const response = await api.get("/billing/invoices", {
+        params: { status: "pending", limit: 1 },
+      });
 
-    // Listen for 403 suspended account events from API interceptor
-    const handleSuspended = (event: Event) => {
-      const customEvent = event as CustomEvent<SuspendedAccountData>;
-      console.log("Suspended account event received:", customEvent.detail);
-      setSuspendedData(customEvent.detail);
-    };
+      const invoices = response.data.data?.invoices || response.data.data || [];
 
-    suspendedAccountEvent.addEventListener(
-      "account-suspended",
-      handleSuspended
-    );
+      if (invoices.length > 0) {
+        const invoice = invoices[0];
 
-    return () => {
-      suspendedAccountEvent.removeEventListener(
-        "account-suspended",
-        handleSuspended
-      );
-    };
-  }, []);
+        console.log("📋 Fetched Invoice:", invoice);
+
+        setSuspendedData({
+          status: "suspended",
+          reason: user?.status === "trial" ? "trial_expired" : "payment_overdue",
+          invoice: {
+            id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            total_amount: invoice.total_amount,
+            due_date: invoice.due_date,
+            payment_method_selected: invoice.payment_method_selected,
+            tripay_va_number: invoice.tripay_va_number,
+            tripay_qr_url: invoice.tripay_qr_url,
+            tripay_payment_url: invoice.tripay_payment_url,
+            tripay_expired_time: invoice.tripay_expired_time,
+          },
+        });
+
+        console.log("✅ Set suspended data with amount:", invoice.total_amount);
+      }
+    } catch (error) {
+      console.error("Failed to fetch suspended invoice:", error);
+    }
+  };
 
   const checkAuth = async () => {
     const token = Cookies.get("token");
@@ -92,13 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.data;
       setUser(userData);
 
-      // Check if suspended and fetch invoice
+      // NEW: Check suspension_reason from backend
       if (userData.status === "suspended") {
+        const reason = userData.suspension_reason || (userData.status === "trial" ? "trial_expired" : "payment_overdue");
+
         await fetchSuspendedInvoice();
       }
-    } catch (error: any) {
-      // If 403 suspended, the interceptor will handle it
-      if (error.response?.status !== 403) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status !== 403) {
         Cookies.remove("token");
       }
     } finally {
@@ -106,37 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const fetchSuspendedInvoice = async () => {
-    try {
-      const response = await api.get("/billing/invoices", {
-        params: { status: "pending", limit: 1 },
-      });
+  useEffect(() => {
+    checkAuth();
 
-      const invoices = response.data.data?.invoices || response.data.data || [];
+    const handleSuspended = (event: Event) => {
+      const customEvent = event as CustomEvent<SuspendedAccountData>;
+      console.log("Suspended account event received:", customEvent.detail);
+      setSuspendedData(customEvent.detail);
+    };
 
-      if (invoices.length > 0) {
-        const invoice = invoices[0];
-        setSuspendedData({
-          status: "suspended",
-          reason:
-            user?.status === "trial" ? "trial_expired" : "payment_overdue",
-          invoice: {
-            id: invoice.id,
-            invoice_number: invoice.invoice_number,
-            amount: invoice.total_amount,
-            due_date: invoice.due_date,
-            payment_method_selected: invoice.payment_method_selected,
-            tripay_va_number: invoice.tripay_va_number,
-            tripay_qr_url: invoice.tripay_qr_url,
-            tripay_payment_url: invoice.tripay_payment_url,
-            tripay_expired_time: invoice.tripay_expired_time,
-          },
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch suspended invoice:", error);
-    }
-  };
+    suspendedAccountEvent.addEventListener("account-suspended", handleSuspended);
+
+    return () => {
+      suspendedAccountEvent.removeEventListener("account-suspended", handleSuspended);
+    };
+  }, []);
 
   const login = async (email: string, password: string) => {
     const response = await api.post("/auth/login", { email, password });
@@ -145,26 +138,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     Cookies.set("token", token, { expires: 7 });
     setUser(client);
 
-    // Check if suspended
     if (client.status === "suspended") {
-      // Fetch invoice data
+      // NEW: Use suspension_reason from backend
+      const reason = client.suspension_reason || "trial_expired";
+
       try {
         const invoiceRes = await api.get("/billing/invoices", {
           params: { status: "pending", limit: 1 },
         });
 
-        const invoices =
-          invoiceRes.data.data?.invoices || invoiceRes.data.data || [];
+        const invoices = invoiceRes.data.data?.invoices || invoiceRes.data.data || [];
 
         if (invoices.length > 0) {
           const invoice = invoices[0];
           setSuspendedData({
             status: "suspended",
-            reason: "trial_expired", // Will be determined by backend
+            reason: reason,
             invoice: {
               id: invoice.id,
               invoice_number: invoice.invoice_number,
-              amount: invoice.total_amount,
+              total_amount: invoice.total_amount,
               due_date: invoice.due_date,
               payment_method_selected: invoice.payment_method_selected,
               tripay_va_number: invoice.tripay_va_number,
@@ -204,6 +197,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSuspendedData(null);
   };
 
+  // NEW: Manual refresh function
+  const refreshSuspendedData = async () => {
+    if (user?.status === "suspended") {
+      await fetchSuspendedInvoice();
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -214,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         clearSuspendedData,
+        refreshSuspendedData, // NEW
       }}
     >
       {children}
