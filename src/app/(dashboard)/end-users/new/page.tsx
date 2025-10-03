@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import api from "@/lib/api";
 import { getErrorMessage } from "@/types/api";
+import { toast } from "react-hot-toast";
 
 export default function NewEndUserPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function NewEndUserPage() {
     phone: "",
     package_name: "",
     package_price: "",
-    billing_cycle: "30", // Changed from "monthly" to number (days)
+    billing_cycle: "30",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,27 +27,21 @@ export default function NewEndUserPage() {
     setLoading(true);
 
     try {
-      // Calculate due_date on frontend (current date + billing_cycle days)
-      const today = new Date();
-      const dueDate = new Date(today);
-      dueDate.setDate(dueDate.getDate() + parseInt(formData.billing_cycle));
-
       const payload = {
         name: formData.name,
         phone: formData.phone,
         package_name: formData.package_name,
         package_price: parseFloat(formData.package_price),
-        billing_cycle: parseInt(formData.billing_cycle), // Send as number
-        // due_date will be calculated by backend
+        billing_cycle: parseInt(formData.billing_cycle),
       };
 
       await api.post("/end-users", payload);
 
-      alert("User created successfully!");
+      toast.success("User berhasil dibuat!");
       router.push("/end-users");
     } catch (err: unknown) {
       console.error("Failed to create user:", err);
-      alert(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

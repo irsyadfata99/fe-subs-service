@@ -5,8 +5,19 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, DollarSign, Calendar, User, Mail, Phone, Building2, CreditCard } from "lucide-react";
+import {
+  ArrowLeft,
+  DollarSign,
+  Calendar,
+  User,
+  Mail,
+  Phone,
+  Building2,
+  CreditCard,
+} from "lucide-react";
 import api from "@/lib/api";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "react-hot-toast";
 
 interface EndUser {
   id: number;
@@ -14,9 +25,9 @@ interface EndUser {
   email?: string;
   phone: string | null;
   address?: string | null;
-  package_name: string; // ← Tambahkan
-  package_price: number; // ← Tambahkan
-  billing_cycle?: string; // ← Tambahkan
+  package_name: string;
+  package_price: number;
+  billing_cycle?: string;
   status: "active" | "overdue" | "inactive";
   payment_date?: string;
   due_date: string;
@@ -41,6 +52,7 @@ export default function EndUserDetailPage() {
       const error = err as { response?: { data?: { error?: string } } };
       console.error("Failed to fetch user:", err);
       setError(error.response?.data?.error || "Failed to fetch user");
+      toast.error("Gagal memuat data pengguna");
     } finally {
       setLoading(false);
     }
@@ -57,11 +69,11 @@ export default function EndUserDetailPage() {
     try {
       const response = await api.post(`/end-users/${user.id}/mark-paid`);
       setUser(response.data.data.end_user);
-      alert("Payment marked successfully!");
+      toast.success("Pembayaran berhasil ditandai!");
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
       console.error("Error marking as paid:", err);
-      alert(error.response?.data?.error || "Failed to mark as paid");
+      toast.error(error.response?.data?.error || "Gagal menandai pembayaran");
     } finally {
       setMarkingPaid(false);
     }
@@ -110,7 +122,11 @@ export default function EndUserDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/end-users")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/end-users")}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -118,7 +134,9 @@ export default function EndUserDetailPage() {
             <p className="text-muted-foreground">{user.email}</p>
           </div>
         </div>
-        <Badge className={getStatusColor(user.status)}>{user.status.toUpperCase()}</Badge>
+        <Badge className={getStatusColor(user.status)}>
+          {user.status.toUpperCase()}
+        </Badge>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -163,7 +181,9 @@ export default function EndUserDetailPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Price</p>
-              <p className="font-medium">Rp {user.package_price?.toLocaleString("id-ID")}</p>
+              <p className="font-medium">
+                {formatCurrency(user.package_price)}
+              </p>
             </div>
             {user.billing_cycle && (
               <div>
@@ -184,11 +204,13 @@ export default function EndUserDetailPage() {
           <CardContent className="space-y-3">
             <div>
               <p className="text-sm text-muted-foreground">Last Payment</p>
-              <p className="font-medium">{user.payment_date ? new Date(user.payment_date).toLocaleDateString("id-ID") : "N/A"}</p>
+              <p className="font-medium">
+                {user.payment_date ? formatDate(user.payment_date) : "N/A"}
+              </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Due Date</p>
-              <p className="font-medium">{new Date(user.due_date).toLocaleDateString("id-ID")}</p>
+              <p className="font-medium">{formatDate(user.due_date)}</p>
             </div>
           </CardContent>
         </Card>
@@ -201,7 +223,11 @@ export default function EndUserDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleMarkAsPaid} disabled={markingPaid} className="w-full">
+            <Button
+              onClick={handleMarkAsPaid}
+              disabled={markingPaid}
+              className="w-full"
+            >
               {markingPaid ? "Processing..." : "Mark as Paid"}
             </Button>
           </CardContent>

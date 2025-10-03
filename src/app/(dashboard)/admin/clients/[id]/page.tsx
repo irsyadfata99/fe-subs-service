@@ -5,11 +5,18 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, DollarSign, Trash2 } from "lucide-react";
 import api from "@/lib/api";
-import { format } from "date-fns";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ClientDetail {
@@ -72,7 +79,7 @@ export default function ClientDetailPage() {
       const response = await api.get(`/admin/clients/${params.id}`);
       setClient(response.data.data);
     } catch (error) {
-      toast.error("Failed to load client data");
+      toast.error("Gagal memuat data klien");
     } finally {
       setLoading(false);
     }
@@ -82,24 +89,33 @@ export default function ClientDetailPage() {
     async (tab: string) => {
       if (tab === "end-users" && endUsers.length === 0) {
         try {
-          const response = await api.get(`/admin/clients/${params.id}/end-users`);
+          const response = await api.get(
+            `/admin/clients/${params.id}/end-users`
+          );
           setEndUsers(response.data.data);
         } catch (error) {
           console.error("Failed to fetch end users");
+          toast.error("Gagal memuat data end users");
         }
       } else if (tab === "invoices" && invoices.length === 0) {
         try {
-          const response = await api.get(`/admin/clients/${params.id}/invoices`);
+          const response = await api.get(
+            `/admin/clients/${params.id}/invoices`
+          );
           setInvoices(response.data.data);
         } catch (error) {
           console.error("Failed to fetch invoices");
+          toast.error("Gagal memuat data invoice");
         }
       } else if (tab === "reminders" && reminders.length === 0) {
         try {
-          const response = await api.get(`/admin/clients/${params.id}/reminders`);
+          const response = await api.get(
+            `/admin/clients/${params.id}/reminders`
+          );
           setReminders(response.data.data);
         } catch (error) {
           console.error("Failed to fetch reminders");
+          toast.error("Gagal memuat data reminders");
         }
       }
     },
@@ -120,7 +136,9 @@ export default function ClientDetailPage() {
     if (!client) return;
 
     const isTrial = client.status === "trial";
-    const confirmMsg = isTrial ? `Permanently delete "${client.business_name}"? This cannot be undone.` : `This will mark "${client.business_name}" as inactive. Continue?`;
+    const confirmMsg = isTrial
+      ? `Permanently delete "${client.business_name}"? This cannot be undone.`
+      : `This will mark "${client.business_name}" as inactive. Continue?`;
 
     if (!confirm(confirmMsg)) return;
 
@@ -135,7 +153,11 @@ export default function ClientDetailPage() {
   };
 
   if (loading || !client) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
   }
 
   const getStatusBadge = (status: string) => {
@@ -163,7 +185,12 @@ export default function ClientDetailPage() {
         <div className="flex gap-2">
           {client.role === "client" && (
             <>
-              <Button variant="outline" onClick={() => router.push(`/admin/clients/${client.id}/adjust-pricing`)}>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  router.push(`/admin/clients/${client.id}/adjust-pricing`)
+                }
+              >
                 <DollarSign className="h-4 w-4 mr-2" />
                 Adjust Pricing
               </Button>
@@ -205,7 +232,9 @@ export default function ClientDetailPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created</span>
-                  <span className="font-medium">{client.created_at ? format(new Date(client.created_at), "dd MMM yyyy") : "-"}</span>
+                  <span className="font-medium">
+                    {client.created_at ? formatDate(client.created_at) : "-"}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -221,12 +250,18 @@ export default function ClientDetailPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Monthly Bill</span>
-                  <span className="font-medium">Rp {client.monthly_bill.toLocaleString("id-ID")}</span>
+                  <span className="font-medium">
+                    {formatCurrency(client.monthly_bill)}
+                  </span>
                 </div>
                 {client.status === "trial" && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Trial Ends</span>
-                    <span className="font-medium">{client.trial_ends_at ? format(new Date(client.trial_ends_at), "dd MMM yyyy") : "-"}</span>
+                    <span className="font-medium">
+                      {client.trial_ends_at
+                        ? formatDate(client.trial_ends_at)
+                        : "-"}
+                    </span>
                   </div>
                 )}
               </CardContent>
@@ -264,9 +299,11 @@ export default function ClientDetailPage() {
                         <TableCell>{user.name}</TableCell>
                         <TableCell>{user.phone}</TableCell>
                         <TableCell>{user.package_name}</TableCell>
-                        <TableCell>Rp {user.package_price.toLocaleString("id-ID")}</TableCell>
+                        <TableCell>
+                          {formatCurrency(user.package_price)}
+                        </TableCell>
                         <TableCell>{getStatusBadge(user.status)}</TableCell>
-                        <TableCell>{format(new Date(user.due_date), "dd MMM yyyy")}</TableCell>
+                        <TableCell>{formatDate(user.due_date)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -303,12 +340,26 @@ export default function ClientDetailPage() {
                   ) : (
                     invoices.map((invoice) => (
                       <TableRow key={invoice.id}>
-                        <TableCell className="font-mono">{invoice.invoice_number}</TableCell>
-                        <TableCell>{format(new Date(invoice.period_year, invoice.period_month - 1), "MMM yyyy")}</TableCell>
-                        <TableCell>Rp {invoice.total_amount.toLocaleString("id-ID")}</TableCell>
+                        <TableCell className="font-mono">
+                          {invoice.invoice_number}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(
+                            invoice.period_year,
+                            invoice.period_month - 1
+                          ).toLocaleDateString("id-ID", {
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(invoice.total_amount)}
+                        </TableCell>
                         <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                        <TableCell>{format(new Date(invoice.due_date), "dd MMM yyyy")}</TableCell>
-                        <TableCell>{invoice.paid_at ? format(new Date(invoice.paid_at), "dd MMM yyyy") : "-"}</TableCell>
+                        <TableCell>{formatDate(invoice.due_date)}</TableCell>
+                        <TableCell>
+                          {invoice.paid_at ? formatDate(invoice.paid_at) : "-"}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -346,7 +397,7 @@ export default function ClientDetailPage() {
                         <TableCell>{reminder.end_user?.name || "-"}</TableCell>
                         <TableCell>{reminder.type.replace("_", " ")}</TableCell>
                         <TableCell>{getStatusBadge(reminder.status)}</TableCell>
-                        <TableCell>{format(new Date(reminder.sent_at), "dd MMM yyyy HH:mm")}</TableCell>
+                        <TableCell>{formatDate(reminder.sent_at)}</TableCell>
                       </TableRow>
                     ))
                   )}

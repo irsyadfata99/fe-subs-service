@@ -1,25 +1,40 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, LogOut, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import PaymentMethodSelector, { PaymentData } from "@/components/payment/PaymentMethodSelector";
+import PaymentMethodSelector, {
+  PaymentData,
+} from "@/components/payment/PaymentMethodSelector";
 import PaymentDisplay from "@/components/payment/PaymentDisplay";
 import InvoiceCard from "@/components/payment/InvoiceCard";
 import api from "@/lib/api";
 import { toast } from "react-hot-toast";
+import { isAccountRestricted } from "@/lib/utils";
 
 interface PaymentRequiredModalProps {
   isOpen: boolean;
   onClose?: () => void;
 }
 
-export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalProps) {
-  const { suspendedData, logout, clearSuspendedData, refreshSuspendedData } = useAuth();
-  const [paymentMethod, setPaymentMethod] = useState<"BCA_VA" | "QRIS" | null>(null);
+export function PaymentRequiredModal({
+  isOpen,
+  onClose,
+}: PaymentRequiredModalProps) {
+  const { suspendedData, logout, clearSuspendedData, refreshSuspendedData } =
+    useAuth();
+  const [paymentMethod, setPaymentMethod] = useState<"BCA_VA" | "QRIS" | null>(
+    null
+  );
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -30,17 +45,31 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
 
   // Polling mechanism untuk invoice yang belum ter-generate
   useEffect(() => {
-    const isInvoiceReady = invoice && invoice.total_amount > 0;
-
-    if (!isOpen || isInvoiceReady) {
-      setIsPolling(false);
+    // Cleanup function
+    const cleanup = () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
+      setIsPolling(false);
+      pollAttemptsRef.current = 0;
+    };
+
+    // Don't poll if modal is closed
+    if (!isOpen) {
+      cleanup();
       return;
     }
 
+    const isInvoiceReady = invoice && invoice.total_amount > 0;
+
+    // Stop polling if invoice is ready
+    if (isInvoiceReady) {
+      cleanup();
+      return;
+    }
+
+    // Start polling only if invoice is not ready
     console.log("🔄 Invoice belum ready, starting polling...");
     setIsPolling(true);
     pollAttemptsRef.current = 0;
@@ -49,28 +78,23 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
 
     pollIntervalRef.current = setInterval(async () => {
       pollAttemptsRef.current++;
-      console.log(`🔄 Polling attempt ${pollAttemptsRef.current}/${MAX_ATTEMPTS}`);
+      console.log(
+        `🔄 Polling attempt ${pollAttemptsRef.current}/${MAX_ATTEMPTS}`
+      );
 
       if (pollAttemptsRef.current >= MAX_ATTEMPTS) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setIsPolling(false);
-        toast.error("Pembuatan invoice timeout. Silakan refresh halaman atau hubungi support.");
+        cleanup();
+        toast.error(
+          "Pembuatan invoice timeout. Silakan refresh halaman atau hubungi support."
+        );
         return;
       }
 
       await refreshSuspendedData();
     }, 5000);
 
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      setIsPolling(false);
-    };
+    // Cleanup on unmount or when dependencies change
+    return cleanup;
   }, [isOpen, invoice?.id, invoice?.total_amount, refreshSuspendedData]);
 
   // Load existing payment data
@@ -90,7 +114,10 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
     }
   }, [invoice]);
 
-  const handlePaymentCreated = async (method: "BCA_VA" | "QRIS", data: PaymentData) => {
+  const handlePaymentCreated = async (
+    method: "BCA_VA" | "QRIS",
+    data: PaymentData
+  ) => {
     setPaymentMethod(method);
     setPaymentData(data);
     setShowPaymentSelector(false);
@@ -124,15 +151,24 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md" showCloseButton={false} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={false}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-3 rounded-full bg-red-100 dark:bg-red-900">
               <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <DialogTitle className="text-xl">Pembayaran Diperlukan</DialogTitle>
-              <DialogDescription>Selesaikan pembayaran untuk melanjutkan layanan</DialogDescription>
+              <DialogTitle className="text-xl">
+                Pembayaran Diperlukan
+              </DialogTitle>
+              <DialogDescription>
+                Selesaikan pembayaran untuk melanjutkan layanan
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -140,17 +176,28 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
         <div className="space-y-4 py-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Semua fitur dinonaktifkan hingga pembayaran selesai.</AlertDescription>
+            <AlertDescription>
+              Semua fitur dinonaktifkan hingga pembayaran selesai.
+            </AlertDescription>
           </Alert>
 
           {isInvoiceReady ? (
             <>
               {/* Invoice Details */}
-              <InvoiceCard invoiceNumber={invoice.invoice_number} totalAmount={safeAmount} dueDate={invoice.due_date} />
+              <InvoiceCard
+                invoiceNumber={invoice.invoice_number}
+                totalAmount={safeAmount}
+                dueDate={invoice.due_date}
+              />
 
               {/* Payment Method Selector atau Display */}
               {showPaymentSelector ? (
-                <PaymentMethodSelector invoiceId={invoice.id} currentMethod={paymentMethod} currentPaymentData={paymentData} onPaymentCreated={handlePaymentCreated} />
+                <PaymentMethodSelector
+                  invoiceId={invoice.id}
+                  currentMethod={paymentMethod}
+                  currentPaymentData={paymentData}
+                  onPaymentCreated={handlePaymentCreated}
+                />
               ) : (
                 paymentMethod &&
                 paymentData && (
@@ -174,7 +221,8 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
                 {isPolling ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Invoice sedang diproses, mohon tunggu... ({pollAttemptsRef.current}/12)
+                    Invoice sedang diproses, mohon tunggu... (
+                    {pollAttemptsRef.current}/12)
                   </div>
                 ) : (
                   "Invoice sedang dibuat. Silakan refresh halaman dalam beberapa saat."
@@ -185,12 +233,19 @@ export function PaymentRequiredModal({ isOpen, onClose }: PaymentRequiredModalPr
         </div>
 
         <div className="space-y-2 pt-2 border-t">
-          <Button onClick={handleLogout} variant="ghost" className="w-full gap-2" size="sm">
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            className="w-full gap-2"
+            size="sm"
+          >
             <LogOut className="h-4 w-4" />
             Keluar
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground">Butuh bantuan? Hubungi support di support@yourplatform.com</p>
+          <p className="text-xs text-center text-muted-foreground">
+            Butuh bantuan? Hubungi support di support@yourplatform.com
+          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -23,6 +23,7 @@ import {
 import { Reminder } from "@/types";
 import { format } from "date-fns";
 import { RefreshCw } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -44,6 +45,7 @@ export default function RemindersPage() {
       setTotalPages(response.data.data.pagination?.totalPages || 1);
     } catch (error) {
       console.error("Failed to fetch reminders:", error);
+      toast.error("Gagal memuat data pengingat");
     } finally {
       setLoading(false);
     }

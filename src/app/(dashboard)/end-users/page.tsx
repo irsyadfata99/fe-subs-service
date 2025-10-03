@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
+import { useDebounce } from "@/hooks/useDebounce";
+import { formatCurrency, formatWhatsApp } from "@/lib/utils";
+import { toast } from "react-hot-toast";
 
 interface EndUser {
   id: number;
@@ -57,7 +60,7 @@ export default function EndUsersPage() {
   const router = useRouter();
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("due_date");
   const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("ASC");
@@ -70,13 +73,16 @@ export default function EndUsersPage() {
   });
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
 
+  // Debounce search input
+  const debouncedSearch = useDebounce(searchInput, 500);
+
   const fetchEndUsers = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {
         page: currentPage.toString(),
         limit: "10",
-        search: searchQuery,
+        search: debouncedSearch,
         sortBy,
         sortOrder,
       };
@@ -98,20 +104,21 @@ export default function EndUsersPage() {
       );
     } catch (error: unknown) {
       console.error("Failed to fetch end users:", error);
+      toast.error("Gagal memuat data pengguna. Silakan coba lagi.");
       setEndUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchQuery, statusFilter, sortBy, sortOrder]);
+  }, [currentPage, debouncedSearch, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchEndUsers();
   }, [fetchEndUsers]);
 
-  const handleSearch = (value: string) => {
-    setSearchQuery(value);
+  // Reset page when search changes
+  useEffect(() => {
     setCurrentPage(1);
-  };
+  }, [debouncedSearch]);
 
   const handleStatusFilter = (value: string) => {
     setStatusFilter(value);
@@ -162,32 +169,6 @@ export default function EndUsersPage() {
     }
   };
 
-  // Format WhatsApp number
-  const formatWhatsApp = (phone: string | null) => {
-    if (!phone) return "-";
-
-    const cleaned = phone.replace(/\D/g, "");
-
-    if (cleaned.startsWith("62")) {
-      const countryCode = cleaned.slice(0, 2);
-      const operator = cleaned.slice(2, 5);
-      const part1 = cleaned.slice(5, 9);
-      const part2 = cleaned.slice(9);
-      return `+${countryCode} ${operator}-${part1}-${part2}`;
-    }
-
-    return phone;
-  };
-
-  // ✅ Format currency - sama seperti Monthly Bill
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -216,8 +197,8 @@ export default function EndUsersPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search users..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -301,7 +282,6 @@ export default function EndUsersPage() {
                         {formatWhatsApp(user.phone)}
                       </TableCell>
                       <TableCell>{user.package_name}</TableCell>
-                      {/* ✅ CHANGED: Format currency dengan Intl */}
                       <TableCell className="font-medium">
                         {formatCurrency(user.package_price || 0)}
                       </TableCell>

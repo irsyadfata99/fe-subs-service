@@ -1,8 +1,11 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
+import { isAccountRestricted } from "./utils";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const BASE_URL = API_BASE_URL.endsWith("/api") ? API_BASE_URL : `${API_BASE_URL}/api`;
+const BASE_URL = API_BASE_URL.endsWith("/api")
+  ? API_BASE_URL
+  : `${API_BASE_URL}/api`;
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -44,7 +47,7 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const config = error.config as AxiosRequestConfig & { _retry?: number };
 
-    // ✅ IMPROVED: Log each property separately to avoid serialization issues
+    // Log errors for debugging
     console.group("❌ API Error");
     console.log("URL:", error.config?.url || "unknown");
     console.log("Method:", error.config?.method?.toUpperCase() || "unknown");
@@ -59,7 +62,9 @@ api.interceptors.response.use(
 
     // Network error (backend not running)
     if (!error.response) {
-      console.error("🔴 Backend tidak dapat dijangkau. Pastikan backend berjalan di http://localhost:5000");
+      console.error(
+        "🔴 Backend tidak dapat dijangkau. Pastikan backend berjalan di http://localhost:5000"
+      );
       return Promise.reject(error);
     }
 
@@ -67,7 +72,11 @@ api.interceptors.response.use(
     if (error.response.status === 401) {
       console.warn("🔐 Token invalid/expired - Redirecting to login");
       Cookies.remove("token");
-      if (typeof window !== "undefined" && !window.location.pathname.includes("/login") && !window.location.pathname.includes("/register")) {
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.includes("/login") &&
+        !window.location.pathname.includes("/register")
+      ) {
         window.location.href = "/login";
       }
       return Promise.reject(error);
@@ -97,8 +106,12 @@ api.interceptors.response.use(
 
       console.log("🔍 403 Response Data:", responseData);
 
-      // Check if account is suspended OR overdue
-      if (responseData?.error === "Account suspended" || responseData?.data?.status === "overdue") {
+      // Check if account is suspended/overdue using utility function
+      const accountStatus = responseData?.data?.status || "";
+      if (
+        responseData?.error === "Account suspended" ||
+        isAccountRestricted(accountStatus)
+      ) {
         console.log("🔴 Account suspended/overdue detected!");
         console.log("   Reason:", responseData.data?.reason);
         console.log("   Invoice ID:", responseData.data?.invoice?.id);
@@ -112,11 +125,14 @@ api.interceptors.response.use(
                 invoice_number: responseData.data.invoice.invoice_number,
                 total_amount: responseData.data.invoice.total_amount,
                 due_date: responseData.data.invoice.due_date,
-                payment_method_selected: responseData.data.invoice.payment_method_selected,
+                payment_method_selected:
+                  responseData.data.invoice.payment_method_selected,
                 tripay_va_number: responseData.data.invoice.tripay_va_number,
                 tripay_qr_url: responseData.data.invoice.tripay_qr_url,
-                tripay_payment_url: responseData.data.invoice.tripay_payment_url,
-                tripay_expired_time: responseData.data.invoice.tripay_expired_time,
+                tripay_payment_url:
+                  responseData.data.invoice.tripay_payment_url,
+                tripay_expired_time:
+                  responseData.data.invoice.tripay_expired_time,
                 tripay_reference: responseData.data.invoice.tripay_reference,
               }
             : undefined,
@@ -158,14 +174,16 @@ export const getErrorMessage = (error: unknown): string => {
     }
 
     const data = error.response.data as { error?: string; message?: string };
-    return data?.error || data?.message || "Terjadi kesalahan. Silakan coba lagi.";
+    return (
+      data?.error || data?.message || "Terjadi kesalahan. Silakan coba lagi."
+    );
   }
 
   if (error instanceof Error) {
     return error.message;
   }
 
-  return "Terjadi kesalahan yang tidak terduka.";
+  return "Terjadi kesalahan yang tidak terduga.";
 };
 
 export default api;

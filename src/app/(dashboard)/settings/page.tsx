@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { validateWhatsApp } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -28,7 +29,6 @@ export default function SettingsPage() {
     confirmPassword: "",
   });
 
-  // ✅ Show/Hide Password States
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -46,13 +46,30 @@ export default function SettingsPage() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate WhatsApp
+    if (profileData.contact_whatsapp) {
+      const validation = validateWhatsApp(profileData.contact_whatsapp);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
+    }
+
+    // Validate Phone
+    if (profileData.phone) {
+      const validation = validateWhatsApp(profileData.phone);
+      if (!validation.valid) {
+        toast.error("Nomor telepon: " + validation.error);
+        return;
+      }
+    }
+
     setLoadingProfile(true);
 
     try {
       await api.put("/auth/profile", profileData);
       toast.success("Profil berhasil diperbarui");
-
-      // Reload to get updated user data
       window.location.reload();
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
@@ -98,15 +115,13 @@ export default function SettingsPage() {
     }
   };
 
-  // ✅ Handle WhatsApp input - hanya angka
   const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ""); // Remove non-digits
+    const value = e.target.value.replace(/\D/g, "");
     setProfileData({ ...profileData, contact_whatsapp: value });
   };
 
-  // ✅ Handle Phone input - hanya angka
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ""); // Remove non-digits
+    const value = e.target.value.replace(/\D/g, "");
     setProfileData({ ...profileData, phone: value });
   };
 
@@ -119,9 +134,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* ✅ 2 Cards Berjajar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Profile Settings Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -197,7 +210,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Change Password Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

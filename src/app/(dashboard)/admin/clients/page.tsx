@@ -5,14 +5,28 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Client } from "@/types";
 import { Search, Eye, Trash2, DollarSign } from "lucide-react";
-import { format } from "date-fns";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 
 export default function AdminClientsPage() {
@@ -20,11 +34,13 @@ export default function AdminClientsPage() {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  const debouncedSearch = useDebounce(searchInput, 500);
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
@@ -32,18 +48,18 @@ export default function AdminClientsPage() {
       const params: Record<string, string | number> = { page, limit: 20 };
       if (statusFilter !== "all") params.status = statusFilter;
       if (roleFilter !== "all") params.role = roleFilter;
-      if (searchQuery) params.search = searchQuery;
+      if (debouncedSearch) params.search = debouncedSearch;
 
       const response = await api.get("/admin/clients", { params });
       setClients(response.data.data.clients);
       setTotalPages(response.data.data.pagination.totalPages);
     } catch (error) {
       console.error("Failed to fetch clients:", error);
-      toast.error("Failed to load clients");
+      toast.error("Gagal memuat data klien");
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, roleFilter, searchQuery]);
+  }, [page, statusFilter, roleFilter, debouncedSearch]);
 
   useEffect(() => {
     if (user && user.role !== "super_admin") {
@@ -54,19 +70,32 @@ export default function AdminClientsPage() {
     fetchClients();
   }, [user, router, fetchClients]);
 
-  const handleDeleteClient = async (clientId: number, businessName: string, status: string) => {
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const handleDeleteClient = async (
+    clientId: number,
+    businessName: string,
+    status: string
+  ) => {
     const isTrial = status === "trial";
-    const confirmMessage = isTrial ? `Permanently delete client "${businessName}"? This action cannot be undone.` : `Mark client "${businessName}" as inactive?`;
+    const confirmMessage = isTrial
+      ? `Permanently delete client "${businessName}"? This action cannot be undone.`
+      : `Mark client "${businessName}" as inactive?`;
 
     if (!confirm(confirmMessage)) return;
 
     try {
       await api.delete(`/admin/clients/${clientId}`);
-      toast.success(`Client ${isTrial ? "deleted" : "marked as inactive"} successfully`);
+      toast.success(
+        `Client ${isTrial ? "deleted" : "marked as inactive"} successfully`
+      );
       fetchClients();
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      const errorMessage = err.response?.data?.error || "Failed to delete client";
+      const errorMessage =
+        err.response?.data?.error || "Failed to delete client";
       toast.error(errorMessage);
       console.error("Failed to delete client:", err);
     }
@@ -97,7 +126,9 @@ export default function AdminClientsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Client Management</h1>
-        <p className="text-muted-foreground mt-1">View and manage all clients</p>
+        <p className="text-muted-foreground mt-1">
+          View and manage all clients
+        </p>
       </div>
 
       <Card>
@@ -105,11 +136,15 @@ export default function AdminClientsPage() {
           <CardTitle>All Clients</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by name or email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -138,7 +173,6 @@ export default function AdminClientsPage() {
             </Select>
           </div>
 
-          {/* Table */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -169,24 +203,58 @@ export default function AdminClientsPage() {
                 ) : (
                   clients.map((client) => (
                     <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.business_name}</TableCell>
+                      <TableCell className="font-medium">
+                        {client.business_name}
+                      </TableCell>
                       <TableCell>{client.email}</TableCell>
                       <TableCell>{getStatusBadge(client.status)}</TableCell>
                       <TableCell>{getRoleBadge(client.role)}</TableCell>
                       <TableCell>{client.total_users}</TableCell>
-                      <TableCell>Rp {client.monthly_bill.toLocaleString("id-ID")}</TableCell>
-                      <TableCell>{client.created_at ? format(new Date(client.created_at), "dd MMM yyyy") : "-"}</TableCell>
+                      <TableCell>
+                        {formatCurrency(client.monthly_bill)}
+                      </TableCell>
+                      <TableCell>
+                        {client.created_at
+                          ? formatDate(client.created_at)
+                          : "-"}
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/clients/${client.id}`)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              router.push(`/admin/clients/${client.id}`)
+                            }
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {client.role === "client" && (
                             <>
-                              <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/clients/${client.id}/adjust-pricing`)} title="Adjust Pricing">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/clients/${client.id}/adjust-pricing`
+                                  )
+                                }
+                                title="Adjust Pricing"
+                              >
                                 <DollarSign className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteClient(client.id, client.business_name, client.status)} title="Delete Client">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  handleDeleteClient(
+                                    client.id,
+                                    client.business_name,
+                                    client.status
+                                  )
+                                }
+                                title="Delete Client"
+                              >
                                 <Trash2 className="h-4 w-4 text-red-600" />
                               </Button>
                             </>
@@ -200,16 +268,23 @@ export default function AdminClientsPage() {
             </Table>
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
-              <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
                 Previous
               </Button>
               <span className="flex items-center px-4">
                 Page {page} of {totalPages}
               </span>
-              <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
                 Next
               </Button>
             </div>

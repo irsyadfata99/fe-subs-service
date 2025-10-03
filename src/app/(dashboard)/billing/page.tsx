@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 interface Invoice {
   id: number;
@@ -11,7 +12,7 @@ interface Invoice {
   total_amount: number;
   status: "pending" | "paid" | "overdue" | "cancelled";
   due_date: string;
-  createdAt: string; // Sequelize converts to camelCase
+  createdAt: string;
   payment_method_selected: "BCA_VA" | "QRIS" | null;
 }
 
@@ -36,7 +37,7 @@ export default function BillingPage() {
       setInvoices(data.data.invoices);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to load invoices";
+        error instanceof Error ? error.message : "Gagal memuat invoice";
       toast.error(message);
     } finally {
       setLoading(false);
@@ -112,23 +113,6 @@ export default function BillingPage() {
         {label}
       </span>
     );
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   if (loading) {
