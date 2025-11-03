@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-  useCallback,
-} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import api, { suspendedAccountEvent } from "@/lib/api";
@@ -58,8 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
-  const [suspendedData, setSuspendedData] =
-    useState<SuspendedAccountData | null>(null);
+  const [suspendedData, setSuspendedData] = useState<SuspendedAccountData | null>(null);
   const router = useRouter();
 
   const fetchSuspendedInvoice = useCallback(
@@ -70,8 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           signal,
         });
 
-        const invoices =
-          response.data.data?.invoices || response.data.data || [];
+        const invoices = response.data.data?.invoices || response.data.data || [];
 
         if (invoices.length > 0 && !signal?.aborted) {
           const invoice = invoices[0];
@@ -79,10 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("📋 Invoice diambil:", invoice);
 
           // Determine reason based on user status
-          let reason:
-            | "trial_expired"
-            | "payment_overdue"
-            | "account_suspended" = "payment_overdue";
+          let reason: "trial_expired" | "payment_overdue" | "account_suspended" = "payment_overdue";
           if (user?.status === "trial") {
             reason = "trial_expired";
           } else if (user?.status === "overdue") {
@@ -137,10 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
 
       // Fetch invoice for suspended OR overdue users using utility
-      if (
-        isAccountRestricted(userData.status) &&
-        !abortController.signal.aborted
-      ) {
+      if (isAccountRestricted(userData.status) && !abortController.signal.aborted) {
         await fetchSuspendedInvoice(abortController.signal);
       }
     } catch (error: unknown) {
@@ -177,19 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSuspendedData(customEvent.detail);
     };
 
-    suspendedAccountEvent.addEventListener(
-      "account-suspended",
-      handleSuspended
-    );
+    suspendedAccountEvent.addEventListener("account-suspended", handleSuspended);
 
     return () => {
       if (cleanup) {
         cleanup();
       }
-      suspendedAccountEvent.removeEventListener(
-        "account-suspended",
-        handleSuspended
-      );
+      suspendedAccountEvent.removeEventListener("account-suspended", handleSuspended);
     };
   }, [checkAuth]);
 
@@ -202,17 +181,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Handle suspended OR overdue status using utility
     if (isAccountRestricted(client.status)) {
-      const reason =
-        client.suspension_reason ||
-        (client.status === "overdue" ? "payment_overdue" : "trial_expired");
+      const reason = client.suspension_reason || (client.status === "overdue" ? "payment_overdue" : "trial_expired");
 
       try {
         const invoiceRes = await api.get("/billing/invoices", {
           params: { status: "pending", limit: 1 },
         });
 
-        const invoices =
-          invoiceRes.data.data?.invoices || invoiceRes.data.data || [];
+        const invoices = invoiceRes.data.data?.invoices || invoiceRes.data.data || [];
 
         if (invoices.length > 0) {
           const invoice = invoices[0];

@@ -5,9 +5,9 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const pathname = request.nextUrl.pathname;
 
-  // Public routes (no auth required)
-  const publicRoutes = ["/login", "/register"];
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+  // Public routes (no auth required) - TAMBAHKAN "/" untuk landing page
+  const publicRoutes = ["/", "/login", "/register"];
+  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(route));
 
   // Admin routes (super_admin only)
   const isAdminRoute = pathname.startsWith("/admin");
@@ -17,8 +17,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // If has token and trying to access auth pages
-  if (token && isPublicRoute) {
+  // If has token and trying to access auth pages (EXCLUDE root "/" dari redirect ini)
+  if (token && isPublicRoute && pathname !== "/") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
