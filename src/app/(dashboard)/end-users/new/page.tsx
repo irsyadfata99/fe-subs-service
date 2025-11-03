@@ -50,118 +50,56 @@ export default function NewEndUserPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push("/end-users")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => router.push("/end-users")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold">Add New User</h1>
+        <h1 className="text-3xl font-bold">Tambah User Baru</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>User Information</CardTitle>
+          <CardTitle>Informasi pengguna</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                required
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="John Doe"
-              />
+              <Label htmlFor="name">Nama *</Label>
+              <Input id="name" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="John Doe" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone *</Label>
-              <Input
-                id="phone"
-                required
-                placeholder="628123456789"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Format: 628xxxxxxxxx
-              </p>
+              <Label htmlFor="phone">Nomer Telepon *</Label>
+              <Input id="phone" required placeholder="628123456789" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+              <p className="text-xs text-muted-foreground">Format: 628xxxxxxxxx</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="package_name">Package Name *</Label>
-              <Input
-                id="package_name"
-                required
-                value={formData.package_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, package_name: e.target.value })
-                }
-                placeholder="Premium Membership"
-              />
+              <Label htmlFor="package_name">Nama Paket *</Label>
+              <Input id="package_name" required value={formData.package_name} onChange={(e) => setFormData({ ...formData, package_name: e.target.value })} placeholder="Premium Membership" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="package_price">Package Price (IDR) *</Label>
-              <Input
-                id="package_price"
-                type="number"
-                required
-                value={formData.package_price}
-                onChange={(e) =>
-                  setFormData({ ...formData, package_price: e.target.value })
-                }
-                placeholder="500000"
-                min="0"
-                step="1000"
-              />
+              <Label htmlFor="package_price">Harga paket *</Label>
+              <Input id="package_price" type="number" required value={formData.package_price} onChange={(e) => setFormData({ ...formData, package_price: e.target.value })} placeholder="500000" min="0" step="1000" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="billing_cycle">Billing Cycle (Days) *</Label>
-              <Input
-                id="billing_cycle"
-                type="number"
-                required
-                value={formData.billing_cycle}
-                onChange={(e) =>
-                  setFormData({ ...formData, billing_cycle: e.target.value })
-                }
-                placeholder="30"
-                min="1"
-                max="365"
-              />
-              <p className="text-xs text-muted-foreground">
-                Number of days until next payment (e.g., 30 for monthly)
-              </p>
+              <Label htmlFor="billing_cycle">Durasi langganan *</Label>
+              <Input id="billing_cycle" type="number" required value={formData.billing_cycle} onChange={(e) => setFormData({ ...formData, billing_cycle: e.target.value })} placeholder="30" min="1" max="365" />
+              <p className="text-xs text-muted-foreground">Berapa hari sampai tagihan selanjutnya</p>
             </div>
 
             <div className="bg-muted p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                <strong>Preview:</strong> Due date will be{" "}
-                {formData.billing_cycle
-                  ? `${formData.billing_cycle} days`
-                  : "..."}{" "}
-                from today
+                <strong>Tampilan:</strong> Tanggal tagihan akan muncul pada {formData.billing_cycle ? `${formData.billing_cycle} days` : "..."} Dari hari ini
               </p>
             </div>
 
             <div className="flex gap-4">
               <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create User"}
+                {loading ? "Creating..." : "Membuat User"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/end-users")}
-              >
+              <Button type="button" variant="outline" onClick={() => router.push("/end-users")}>
                 Cancel
               </Button>
             </div>

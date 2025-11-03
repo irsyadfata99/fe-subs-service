@@ -8,21 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkActionsToolbar } from "@/components/BulkActionsToolbar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -136,11 +123,7 @@ export default function EndUsersPage() {
   };
 
   const toggleUserSelection = (userId: number) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
+    setSelectedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   };
 
   const toggleSelectAll = () => {
@@ -172,45 +155,34 @@ export default function EndUsersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">End Users</h1>
+        <h1 className="text-3xl font-bold">Pengguna Akhir</h1>
         <Button onClick={() => router.push("/end-users/new")}>
           <Plus className="mr-2 h-4 w-4" />
-          Add User
+          Tambah User
         </Button>
       </div>
 
-      {selectedUsers.length > 0 && (
-        <BulkActionsToolbar
-          selectedCount={selectedUsers.length}
-          selectedUserIds={selectedUsers}
-          onActionComplete={handleBulkActionComplete}
-        />
-      )}
+      {selectedUsers.length > 0 && <BulkActionsToolbar selectedCount={selectedUsers.length} selectedUserIds={selectedUsers} onActionComplete={handleBulkActionComplete} />}
 
       <Card>
         <CardHeader>
-          <CardTitle>User Management</CardTitle>
+          <CardTitle>Managemen pengguna</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-center mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search users..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Mencari pengguna..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="pl-10" />
             </div>
             <Select value={statusFilter} onValueChange={handleStatusFilter}>
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="all">Semua status</SelectItem>
+                <SelectItem value="active">Aktif</SelectItem>
+                <SelectItem value="overdue">Kadaluarsa</SelectItem>
+                <SelectItem value="inactive">Tidak Aktif</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -220,39 +192,21 @@ export default function EndUsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
-                    <Checkbox
-                      checked={
-                        selectedUsers.length === endUsers.length &&
-                        endUsers.length > 0
-                      }
-                      onCheckedChange={toggleSelectAll}
-                    />
+                    <Checkbox checked={selectedUsers.length === endUsers.length && endUsers.length > 0} onCheckedChange={toggleSelectAll} />
                   </TableHead>
-                  <TableHead
-                    className="cursor-pointer"
-                    onClick={() => handleSort("name")}
-                  >
-                    Name{" "}
-                    {sortBy === "name" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead className="cursor-pointer" onClick={() => handleSort("name")}>
+                    Nama {sortBy === "name" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
                   <TableHead>WhatsApp</TableHead>
                   <TableHead>Platform</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead
-                    className="cursor-pointer"
-                    onClick={() => handleSort("status")}
-                  >
-                    Status{" "}
-                    {sortBy === "status" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead>Harga</TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
+                    Status {sortBy === "status" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
-                  <TableHead
-                    className="cursor-pointer"
-                    onClick={() => handleSort("due_date")}
-                  >
-                    Due Date{" "}
-                    {sortBy === "due_date" && (sortOrder === "ASC" ? "↑" : "↓")}
+                  <TableHead className="cursor-pointer" onClick={() => handleSort("due_date")}>
+                    Masa Akhir {sortBy === "due_date" && (sortOrder === "ASC" ? "↑" : "↓")}
                   </TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -265,40 +219,25 @@ export default function EndUsersPage() {
                 ) : endUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center">
-                      No users found
+                      Tidak ada user yang ditemukan
                     </TableCell>
                   </TableRow>
                 ) : (
                   endUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
-                        <Checkbox
-                          checked={selectedUsers.includes(user.id)}
-                          onCheckedChange={() => toggleUserSelection(user.id)}
-                        />
+                        <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => toggleUserSelection(user.id)} />
                       </TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {formatWhatsApp(user.phone)}
-                      </TableCell>
+                      <TableCell className="font-mono text-sm">{formatWhatsApp(user.phone)}</TableCell>
                       <TableCell>{user.package_name}</TableCell>
-                      <TableCell className="font-medium">
-                        {formatCurrency(user.package_price || 0)}
-                      </TableCell>
+                      <TableCell className="font-medium">{formatCurrency(user.package_price || 0)}</TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(user.status)}>
-                          {user.status}
-                        </Badge>
+                        <Badge className={getStatusColor(user.status)}>{user.status}</Badge>
                       </TableCell>
+                      <TableCell>{new Date(user.due_date).toLocaleDateString("id-ID")}</TableCell>
                       <TableCell>
-                        {new Date(user.due_date).toLocaleDateString("id-ID")}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => router.push(`/end-users/${user.id}`)}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => router.push(`/end-users/${user.id}`)}>
                           View
                         </Button>
                       </TableCell>
@@ -311,32 +250,16 @@ export default function EndUsersPage() {
 
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Showing {(currentPage - 1) * pagination.limit + 1} to{" "}
-              {Math.min(currentPage * pagination.limit, pagination.total)} of{" "}
-              {pagination.total} results
+              Menunjukan {(currentPage - 1) * pagination.limit + 1} to {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} hasil
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm">
                 Page {currentPage} of {pagination.totalPages}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setCurrentPage((prev) =>
-                    Math.min(pagination.totalPages, prev + 1)
-                  )
-                }
-                disabled={currentPage === pagination.totalPages}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.min(pagination.totalPages, prev + 1))} disabled={currentPage === pagination.totalPages}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

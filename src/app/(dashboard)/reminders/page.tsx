@@ -3,23 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Reminder } from "@/types";
 import { format } from "date-fns";
 import { RefreshCw } from "lucide-react";
@@ -56,11 +43,7 @@ export default function RemindersPage() {
   }, [fetchReminders]);
 
   const getStatusBadge = (status: string) => {
-    return status === "sent" ? (
-      <Badge className="bg-green-100 text-green-800">Sent</Badge>
-    ) : (
-      <Badge className="bg-red-100 text-red-800">Failed</Badge>
-    );
+    return status === "sent" ? <Badge className="bg-green-100 text-green-800">Sent</Badge> : <Badge className="bg-red-100 text-red-800">Failed</Badge>;
   };
 
   const getTypeBadge = (type: string) => {
@@ -76,10 +59,8 @@ export default function RemindersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Reminders</h1>
-        <p className="text-gray-500 mt-1">
-          View all sent reminder notifications
-        </p>
+        <h1 className="text-3xl font-bold">Pengingat</h1>
+        <p className="text-gray-500 mt-1">List seluruh notifikasi reminder yang telah dikirim</p>
       </div>
 
       <Card>
@@ -90,9 +71,9 @@ export default function RemindersPage() {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="all">Seluruh status</SelectItem>
+                <SelectItem value="sent">Terkirim</SelectItem>
+                <SelectItem value="failed">Gagal</SelectItem>
               </SelectContent>
             </Select>
 
@@ -101,21 +82,15 @@ export default function RemindersPage() {
                 <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">Seluruh tipe</SelectItem>
                 <SelectItem value="before_3days">H-3</SelectItem>
                 <SelectItem value="before_1day">H-1</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="overdue">Lewat deadline</SelectItem>
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              onClick={fetchReminders}
-              disabled={loading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-              />
+            <Button variant="outline" onClick={fetchReminders} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -124,12 +99,12 @@ export default function RemindersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>End User</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>Pengguna Akhir</TableHead>
+                <TableHead>Whatsapp</TableHead>
+                <TableHead>Tipe</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Sent At</TableHead>
-                <TableHead>Message Preview</TableHead>
+                <TableHead>Terkirim Saat</TableHead>
+                <TableHead>Tampilan Pesan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,29 +117,18 @@ export default function RemindersPage() {
               ) : reminders.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
-                    No reminders found
+                    Tidak ada reminder ditemukan
                   </TableCell>
                 </TableRow>
               ) : (
                 reminders.map((reminder) => (
                   <TableRow key={reminder.id}>
-                    <TableCell className="font-medium">
-                      {reminder.end_user?.name || "-"}
-                    </TableCell>
+                    <TableCell className="font-medium">{reminder.end_user?.name || "-"}</TableCell>
                     <TableCell>{reminder.phone}</TableCell>
                     <TableCell>{getTypeBadge(reminder.type)}</TableCell>
                     <TableCell>{getStatusBadge(reminder.status)}</TableCell>
-                    <TableCell>
-                      {reminder.sent_at
-                        ? format(
-                            new Date(reminder.sent_at),
-                            "dd MMM yyyy HH:mm"
-                          )
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {reminder.message.substring(0, 50)}...
-                    </TableCell>
+                    <TableCell>{reminder.sent_at ? format(new Date(reminder.sent_at), "dd MMM yyyy HH:mm") : "-"}</TableCell>
+                    <TableCell className="max-w-xs truncate">{reminder.message.substring(0, 50)}...</TableCell>
                   </TableRow>
                 ))
               )}
@@ -173,22 +137,14 @@ export default function RemindersPage() {
 
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
+              <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                Sebelum
               </Button>
               <span className="flex items-center px-4">
                 Page {page} of {totalPages}
               </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
+              <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                Selanjutnya
               </Button>
             </div>
           )}

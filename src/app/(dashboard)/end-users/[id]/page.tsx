@@ -5,16 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  ArrowLeft,
-  DollarSign,
-  Calendar,
-  User,
-  Mail,
-  Phone,
-  Building2,
-  CreditCard,
-} from "lucide-react";
+import { ArrowLeft, DollarSign, Calendar, User, Mail, Phone, Building2, CreditCard } from "lucide-react";
 import api from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "react-hot-toast";
@@ -91,7 +82,7 @@ export default function EndUserDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <div className="text-lg text-red-500">{error}</div>
-        <Button onClick={() => router.push("/end-users")}>Back to List</Button>
+        <Button onClick={() => router.push("/end-users")}>Kembali ke list</Button>
       </div>
     );
   }
@@ -99,8 +90,8 @@ export default function EndUserDetailPage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-lg">User not found</div>
-        <Button onClick={() => router.push("/end-users")}>Back to List</Button>
+        <div className="text-lg">User tidak ditemukan</div>
+        <Button onClick={() => router.push("/end-users")}>Kembali ke list</Button>
       </div>
     );
   }
@@ -122,11 +113,7 @@ export default function EndUserDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/end-users")}
-          >
+          <Button variant="ghost" size="icon" onClick={() => router.push("/end-users")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -134,9 +121,7 @@ export default function EndUserDetailPage() {
             <p className="text-muted-foreground">{user.email}</p>
           </div>
         </div>
-        <Badge className={getStatusColor(user.status)}>
-          {user.status.toUpperCase()}
-        </Badge>
+        <Badge className={getStatusColor(user.status)}>{user.status.toUpperCase()}</Badge>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -144,7 +129,7 @@ export default function EndUserDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Personal Information
+              Informasi personal
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -171,23 +156,21 @@ export default function EndUserDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Subscription Details
+              Detail Langganan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="text-sm text-muted-foreground">Package</p>
+              <p className="text-sm text-muted-foreground">Paket</p>
               <p className="font-medium">{user.package_name}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Price</p>
-              <p className="font-medium">
-                {formatCurrency(user.package_price)}
-              </p>
+              <p className="text-sm text-muted-foreground">Harga</p>
+              <p className="font-medium">{formatCurrency(user.package_price)}</p>
             </div>
             {user.billing_cycle && (
               <div>
-                <p className="text-sm text-muted-foreground">Billing Cycle</p>
+                <p className="text-sm text-muted-foreground">Tagihan Bulanan</p>
                 <p className="font-medium capitalize">{user.billing_cycle}</p>
               </div>
             )}
@@ -198,18 +181,16 @@ export default function EndUserDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Payment Information
+              Informasi Pembayaran
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="text-sm text-muted-foreground">Last Payment</p>
-              <p className="font-medium">
-                {user.payment_date ? formatDate(user.payment_date) : "N/A"}
-              </p>
+              <p className="text-sm text-muted-foreground">Pembayaran Akhir</p>
+              <p className="font-medium">{user.payment_date ? formatDate(user.payment_date) : "N/A"}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Due Date</p>
+              <p className="text-sm text-muted-foreground">Tanggal Deadline</p>
               <p className="font-medium">{formatDate(user.due_date)}</p>
             </div>
           </CardContent>
@@ -219,15 +200,11 @@ export default function EndUserDetailPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              Quick Actions
+              Aksi cepat
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button
-              onClick={handleMarkAsPaid}
-              disabled={markingPaid}
-              className="w-full"
-            >
+            <Button onClick={handleMarkAsPaid} disabled={markingPaid} className="w-full">
               {markingPaid ? "Processing..." : "Mark as Paid"}
             </Button>
           </CardContent>
